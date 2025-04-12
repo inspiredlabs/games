@@ -58,7 +58,9 @@ export async function initializeMediaPipe() {
 export function createHandsModel(Hands) {
   log('Creating hand model');
   const hands = new Hands({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    // Local:
+    locateFile: (file) => `/mediapipe/hands/${file}`
+    // CDN: locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
   });
   
   hands.setOptions(MEDIAPIPE_CONFIG);
