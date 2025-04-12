@@ -1,4 +1,3 @@
-// svelte.config.mjs
 import adapter from "@sveltejs/adapter-vercel";
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import path from 'path';
@@ -16,7 +15,6 @@ const config = {
 			$routes: path.resolve('./src/routes'),
 			$lib: path.resolve('./src/lib'),
 			$src: path.resolve('./src/')
-			
     }
 	},
 

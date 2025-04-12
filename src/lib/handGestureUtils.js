@@ -1,7 +1,8 @@
 // lib/handGestureUtils.js
 // Utility functions for hand gesture detection
 
-import { log } from './mediapipeService';
+import { log } from './mediapipeService.svelte.js'; // log(`Average fingertip distance: ${avgDistance.toFixed(3)}`);
+
 
 /**
  * Calculate the Euclidean distance between two 3D points
@@ -16,6 +17,35 @@ export function calculateDistance(point1, point2) {
     Math.pow(point2.z - point1.z, 2)
   );
 }
+
+/**
+  * Determine the hand gesture state based on landmarks
+  * @param {Array} landmarks - Array of hand landmarks from MediaPipe
+  * @returns {string} The hand state: 'fist', 'palm', or 'unknown'
+  */
+export function calculateAvgFingerTipDistance(landmarks) {
+  if (!landmarks || landmarks.length < 21) {
+    return 0;
+  }
+  const wrist = landmarks[0];
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const middleTip = landmarks[12];
+  const ringTip = landmarks[16];
+  const pinkyTip = landmarks[20];
+
+  const distances = [
+    calculateDistance(wrist, thumbTip),
+    calculateDistance(wrist, indexTip),
+    calculateDistance(wrist, middleTip),
+    calculateDistance(wrist, ringTip),
+    calculateDistance(wrist, pinkyTip)
+  ];
+
+  const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+  return avgDistance;
+}
+
 
 /**
  * Determine the hand gesture state based on landmarks
@@ -44,7 +74,8 @@ export function getHandState(landmarks) {
   
   const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
   
-  log(`Average fingertip distance: ${avgDistance.toFixed(3)}`);
+  // see: `calculateAvgFingerTipDistance()` above.
+  // log(`Average fingertip distance: ${avgDistance.toFixed(3)}`);
   
   // These thresholds may need adjustment based on testing
   if (avgDistance < 0.15) return 'fist';

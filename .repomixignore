@@ -1,0 +1,20 @@
+/* repomix-ignore-start */
+
+node_modules/
+.svelte-kit/
+public/
+support/
+CONVENTIONS-runes-global-state.md
+CONVENTIONS.md
+package-lock.json
+pnpm-lock.yaml
+README.md
+repomix-output.txt
+/scripts
+src/app.css
+src/app.d.ts
+src/app.html
+/static/mediapipe
+/static/
+
+# nb: perplexity.ai/search/i-want-to-use-the-repomix-expr-B0erhsrITv.UPiG468412w
