@@ -1,9 +1,9 @@
 // $lib/useSharedContext.svelte.js
 import { getContext, setContext } from 'svelte';
 // Import accessory components needed for the list definition
-import WandComponent from '$routes/camera/Wand.svelte';
-import SwordComponent from '$routes/camera/Sword.svelte';
-import AxeComponent from '$routes/camera/Axe.svelte';
+import WandComponent from '$routes/(app)/camera/Wand.svelte';
+import SwordComponent from '$routes/(app)/camera/Sword.svelte';
+import AxeComponent from '$routes/(app)/camera/Axe.svelte';
 
 // Symbol used as context key to prevent collisions
 const CONTEXT_KEY = Symbol('sharedContext');

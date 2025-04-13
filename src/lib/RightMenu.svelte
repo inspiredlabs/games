@@ -100,13 +100,9 @@
   opacity: 0;
 }
 
-/* repomix-ignore-end */</style>
+/* repomix-ignore-end */
+</style>
 
 
-<svg class="spirites" style="display: none;">
-	<defs>
-    <path id="icon-menu" stroke="currentcolor" stroke-width="6" d="M0 5h32M0 16h32M0 27h32"/>
-  </defs>
-</svg>
 
 <!-- usage: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/menu_role -->
