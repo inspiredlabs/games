@@ -82,7 +82,7 @@ const MAX_SCALE = 3.0;
 const PALM_NORMAL_STABILIZATION_THRESHOLD = 0.0001;
 
 export function createOneHandController(options = {}) {
-  console.log('[Controller] Creating controller with options:', options);
+  // console.log('[Controller] Creating controller with options:', options); // Suppress log
 
   // --- Configuration ---
   let fistThreshold = $state(options.fistThreshold ?? DEFAULT_FIST_THRESHOLD);
@@ -251,6 +251,7 @@ export function createOneHandController(options = {}) {
 
   // --- Public Update Method ---
   function update(multiHandLandmarks) {
+    // console.log('>>> [Controller] update() called', multiHandLandmarks); // REMOVED LOG
     const currentLandmarks = multiHandLandmarks?.[0];
     if (!currentLandmarks || currentLandmarks.length < 21) {
       if (visible) visible = false;
@@ -277,7 +278,7 @@ export function createOneHandController(options = {}) {
   }
 
   // --- Return Controller API ---
-  console.log('[Controller] Initialization complete');
+  // console.log('[Controller] Initialization complete'); // Suppress log
   
   return {
     // Direct access to state variables with getters
