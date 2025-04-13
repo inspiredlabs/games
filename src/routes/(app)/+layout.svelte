@@ -1,21 +1,22 @@
 <script>
-// src/routes/[slug]/+layout.svelte
+// src/routes/(app)/+layout.svelte - REVISED EXECUTION ORDER
 import '$src/app.css';
 import { useSharedContext, createSharedContext } from '$lib/useSharedContext.svelte.js';
 import RightMenu from '$lib/RightMenu.svelte';
 import { browser } from '$app/environment';
+import { page } from '$app/stores'; // Import page store
 
 /*
-* About `src/routes/[slug]/+layout.svelte`
+* About `src/routes/(app)/+layout.svelte`
 * This layout handles shared functionality across all game routes and manages scoped state.
 * This page uses a declarative structure: Defining the outermost page structure common to all slug routes.
-* It contains the UI & main content,using Svelte's `{@render children()}` because `<svelte:component this={sharedContext}>` is deprecated.
+* It contains the UI & main content,using Svelte's `{@render children()}`.
 */
 // Create the shared context during component initialization
 const sharedContext = createSharedContext();
 
 // Accept children as props
-const { children } = $props();
+const { children, data } = $props(); // Ensure data is destructured if coming from +layout.js/.server.js
 
 
 
@@ -36,8 +37,14 @@ import { createOneHandController } from '$lib/controllerOneHand.svelte.js';
 // Get the shared context
 const context = useSharedContext();
 
+// Instantiate the controller FIRST
+const handController = createOneHandController({
+  tweenDuration: 200,
+  fistThreshold: 0.23
+});
 
-
+// Set the controller in context IMMEDIATELY
+context.activeController = handController;
 
 
 // DOM References
@@ -60,6 +67,7 @@ let mediaPipeInitialized = $state(false);
 // --- Callbacks for ThreeScene ---
 function handleThreeSceneReady(payload) {
   if (!payload || !payload.scene) return;
+  // console.log('[Layout] handleThreeSceneReady: Setting scene, camera, renderer in context.');
   context.threeJsScene = payload.scene;
   context.threeJsCamera = payload.camera;
   context.threeJsRenderer = payload.renderer;
@@ -68,6 +76,7 @@ function handleThreeSceneReady(payload) {
 }
 
 function handleThreeSceneDestroy() {
+  // console.log('[Layout] handleThreeSceneDestroy: Clearing scene, camera, renderer in context.');
   context.threeJsScene = null;
   context.threeJsCamera = null;
   context.threeJsRenderer = null;
@@ -75,35 +84,48 @@ function handleThreeSceneDestroy() {
   context.threeJsReady = false;
 }
 
-// --- Component Selection & Controller Context Setup ---
+// --- Accessory Selection Based on Slug ---
 $effect(() => {
-  if (data?.data?.slug) {
-    const slug = data.data.slug.charAt(0).toUpperCase() + data.data.slug.slice(1);
-    const accessoryIndex = context.handAccessories.findIndex(acc => acc.name === slug);
+  // console.log('[Layout Effect Slug Check] Running effect.');
+  const currentSlug = $page.params.slug; // Use $page store for route params
+  // console.log('[Layout Effect Slug Check] Current page params:', $page.params);
+  // console.log('[Layout Effect Slug Check] currentSlug:', currentSlug);
+
+  if (currentSlug) {
+    // console.log('[Layout Effect Slug Check] Found slug:', currentSlug);
+    const slugUpper = currentSlug.charAt(0).toUpperCase() + currentSlug.slice(1);
+    // console.log('[Layout Effect Slug Check] Capitalized Slug:', slugUpper);
+    // console.log('[Layout Effect Slug Check] Available Accessories:', context.handAccessories.map(a => a.name));
+    const accessoryIndex = context.handAccessories.findIndex(acc => acc.name === slugUpper);
+    // console.log('[Layout Effect Slug Check] Found accessoryIndex:', accessoryIndex);
+
     if (accessoryIndex >= 0) {
+      console.log(`[Layout Effect Slug Check] Setting selectedAccessoryIndex to ${accessoryIndex}`); // KEEP (Line 89)
       context.selectedAccessoryIndex = accessoryIndex;
     } else {
-      console.error(`[Route] Accessory '${slug}' not found.`);
+      console.error(`[Layout Effect Slug Check] Accessory '${slugUpper}' not found.`); // KEEP (Line 11)
+      // Reset index if slug doesn't match an accessory
+      context.selectedAccessoryIndex = -1; 
     }
-
-    // Set Active Controller in Context
-    if (context.activeController !== handController) {
-        context.activeController = handController;
-    }
-    // Cleanup
-    return () => {
-        if (context.activeController === handController) {
-            context.activeController = null;
-        }
-    };
+  } else {
+    // console.log('[Layout Effect Slug Check] No slug found in $page.params.');
+    // Reset index if no slug
+    context.selectedAccessoryIndex = -1; 
   }
+  
+  // Cleanup: We don't need to manage activeController here anymore
+  return () => {
+      // console.log('[Layout Effect Slug Check] Cleanup: Slug changed, accessory selection updated.');
+  };
 });
 
 // --- Layout and DOM Element Setup ---
 $effect(() => {
   if (container && leftPane && rightPane && resizer && videoElement && handCanvas) {
+    // console.log('[Layout] Setting DOM elements in context.');
     context.setElements({ container, leftPane, rightPane, resizer, videoElement, videoOverlayGray, handCanvas });
     if (!context.layoutInitialized) {
+      // console.log('[Layout] Initializing layout (divider, resize listener).');
       context.updateLayout(context.dividerPosition);
       context.setupResizeListener();
       context.layoutInitialized = true;
@@ -113,32 +135,54 @@ $effect(() => {
 
 // --- Camera and MediaPipe Initialization Flow ---
 async function initializeCamera() {
-    if (!browser || !videoElement || cameraReady) return false;
+    if (!browser || !videoElement || cameraReady) {
+      // console.log('[Layout Init] Skipping camera init:', { browser, videoElementExists: !!videoElement, cameraReady });
+      return false;
+    }
+    // console.log('[Layout Init] Initializing camera...');
     try {
         await context.initCamera();
         cameraReady = context.videoReady;
-        if (cameraReady && handCanvas) {
-            if (handCanvas.width !== context.videoWidth || handCanvas.height !== context.videoHeight) {
+        if (cameraReady) {
+            // console.log('[Layout Init] Camera ready. Setting canvas size.');
+            if (handCanvas && (handCanvas.width !== context.videoWidth || handCanvas.height !== context.videoHeight)) {
                 handCanvas.width = context.videoWidth;
                 handCanvas.height = context.videoHeight;
             }
+        } else {
+            // console.warn('[Layout Init] context.initCamera finished but videoReady is still false.');
         }
         return cameraReady;
-    } catch (error) {
-        console.error(`[Page ${data.data.slug}] Camera init failed:`, error);
+    } catch (error) {        
+        console.error('[Layout Init] Camera init failed:', error); // KEEP (Line 21)
         cameraReady = false;
         return false;
     }
 }
 
 async function initializeMediaPipe() {
-    if (!browser || mediaPipeInitialized || !cameraReady || !handCanvas || !context.activeController) return false;
+    // Check for activeController *before* proceeding (should always be true now)
+    if (!browser || mediaPipeInitialized || !cameraReady || !handCanvas || !context.activeController) {
+         console.log('[Layout Init] Skipping MediaPipe init:', { 
+             browser, mediaPipeInitialized, cameraReady, 
+             handCanvasExists: !!handCanvas, 
+             activeControllerExists: !!context.activeController 
+         });
+        return false;
+    }
+    // console.log('[Layout Init] Initializing MediaPipe...');
     try {
+        // Pass context explicitly if needed, though mediapipeService uses useSharedContext
         const result = await mediaService.initializeWithVideoElement(videoElement, handCanvas);
         mediaPipeInitialized = result.success;
+        if (mediaPipeInitialized) {
+          // console.log('[Layout Init] MediaPipe initialized successfully.');
+        } else {
+          // console.warn('[Layout Init] MediaPipe initialization returned success: false.');
+        }
         return mediaPipeInitialized;
     } catch (error) {
-        console.error(`[Page ${data.data.slug}] MediaPipe init error:`, error);
+        console.error('[Layout Init] MediaPipe init error:', error); // KEEP (Line 25)
         mediaPipeInitialized = false;
         return false;
     }
@@ -147,23 +191,31 @@ async function initializeMediaPipe() {
 // Main initialization effect
 $effect(() => {
     if (!browser) return;
+    // console.log('[Layout Init Effect] Running main initialization effect.');
     let cancelled = false;
     async function startup() {
-        await initializeCamera();
-        if (cancelled) return;
+        const camSuccess = await initializeCamera();
+        if (cancelled || !camSuccess) return;
+        // Ensure controller is set before initializing mediapipe
+        if (!context.activeController) {
+            console.error('[Layout Init Effect] FATAL: activeController not set before MediaPipe init!');
+            return; 
+        }
         await initializeMediaPipe();
     }
     startup();
 
-    // Nested retry effect
+    // Nested retry effect (may need adjustment if startup handles retries internally)
     $effect(() => {
         if (browser && !cancelled && !mediaPipeInitialized && cameraReady && handCanvas && context.activeController) {
+          // console.log('[Layout Init Effect] Retrying MediaPipe initialization...');
           initializeMediaPipe();
         }
     });
 
     // Cleanup
     return () => {
+        // console.log('[Layout Init Effect] Cleanup: Stopping tracks, resetting flags.');
         cancelled = true;
         if (videoElement && videoElement.srcObject) {
             videoElement.srcObject.getTracks().forEach(track => track.stop());
@@ -174,34 +226,17 @@ $effect(() => {
         context.videoReady = false;
         context.mediaPipeLoaded = false;
         context.handFound = false;
-        if (context.activeController === handController) {
-            context.activeController = null;
-        }
+        // Reset active controller ONLY when layout unmounts
+        context.activeController = null; 
     };
 });
 
 
 
 
-
-
-
-
-// Instantiate the controller
-const handController = createOneHandController({
-  tweenDuration: 200,
-  fistThreshold: 0.23
-});
-
-// Debug - log controller methods with $inspect
+// Debug - log controller methods with $inspect (Suppressed)
 $effect(() => {
-  $inspect('Controller values:', {
-    position: handController.position,
-    visible: handController.visible,
-    scale: handController.scale,
-    state: handController.stableHandState,
-    debugMsg: handController.debugState?.message
-  });
+  // $inspect('[Layout Controller Inspect] Controller values:', { ... });
 });
 
 // Add a debug overlay to show what's happening
@@ -214,6 +249,7 @@ let debugInfo = $state({
 
 // Keep the debug info updated
 $effect(() => {
+  if (!handController) return; // Add safety check
   debugInfo.visible = handController.visible;
   debugInfo.position = handController.position;
   debugInfo.scale = handController.scale;
@@ -222,28 +258,21 @@ $effect(() => {
 
 
 
-// Use $derived to access the current store values
-const accessoryVisible = $derived(handController.visible);
-const accessoryPosition = $derived(handController.position && typeof handController.position.subscribe === 'function' 
-  ? $handController.position  // Use $ to get the store value
-  : handController.position);
-const accessoryQuaternion = $derived(handController.quaternion && typeof handController.quaternion.subscribe === 'function'
-  ? $handController.quaternion
-  : handController.quaternion);
-const accessoryScale = $derived(handController.scale && typeof handController.scale.subscribe === 'function'
-  ? $handController.scale
-  : handController.scale);
+// Use $derived to access the current store values (Simplified)
+const accessoryVisible = $derived(handController?.visible ?? false);
+const accessoryPosition = $derived(handController?.position ?? { x: 0, y: 1, z: 0 }); // Default to object
+const accessoryQuaternion = $derived(handController?.quaternion ?? { x: 0, y: 0, z: 0, w: 1 }); // Default to object
+const accessoryScale = $derived(handController?.scale ?? 1);
 
 // Add debug logging with proper Svelte 5 inspection
 $effect(() => {
   if (!handController) return;
-  
-  $inspect('[Debug] Controller Interface:', {
+
+  $inspect('[Layout Accessory Derived Values]:', { // KEEP (Line 281)
     hasPosition: !!handController.position,
     hasQuaternion: !!handController.quaternion,
     hasScale: !!handController.scale,
     hasVisible: !!handController.visible,
-    isPositionStore: handController.position && typeof handController.position.subscribe === 'function',
     visible: accessoryVisible,
     currentPosition: accessoryPosition,
     currentScale: accessoryScale
@@ -254,16 +283,17 @@ $effect(() => {
 
 // Keep the debug info up to date
 $effect(() => {
+  if (!handController) return; // Add safety check
   debugInfo.visible = accessoryVisible;
   debugInfo.state = handController.stableHandState;
   debugInfo.position = accessoryPosition;
   debugInfo.scale = accessoryScale;
 });
 </script>
-  
+
 <RightMenu />
 <main class="bg-dark-gray white h-100 vh-100">
-  
+
 <!-- Render the children inside the shared context -->
 {#if sharedContext}
 <!-- slot -->
@@ -297,6 +327,13 @@ $effect(() => {
     {/if}
 
     <!-- Render the selected accessory -->
+    <!-- *** LOGGING ADDED HERE *** -->
+    <div class="absolute top-1 left-1 white z-5 bg-black-50 pa1 dn">Accessory Render Check:
+      sceneReady: {sceneReady ? '✅' : '❌'},
+      context.threeJsScene: {context.threeJsScene ? '✅' : '❌'},
+      context.selectedAccessory: {context.selectedAccessory ? `✅ (${context.selectedAccessory.name})` : '❌'},
+      handController: {handController ? '✅' : '❌'}
+    </div>
     {#if sceneReady && context.threeJsScene && context.selectedAccessory && handController}
     {@const Accessory = context.selectedAccessory.component}
     {#key context.selectedAccessory.name}
@@ -308,6 +345,9 @@ $effect(() => {
         scale={accessoryScale}
       />
     {/key}
+    {:else}
+     <!-- Optional: Add a placeholder or message when accessory doesn't render -->
+     <!-- <div class="absolute top-2 left-1 white z-5 bg-red-50 pa1">Accessory not rendering.</div> -->
     {/if}
   </div>
   <!-- Debug data display -->
@@ -315,9 +355,9 @@ $effect(() => {
     <textarea class="highlight code meadow input-reset bg-transparent white bn h4 w5">
     Visible: {debugInfo.visible ? 'Yes' : 'No'}
     State: {debugInfo.state}
-    Position: 
-      x: {debugInfo.position?.x?.toFixed(2) ?? '?'}, 
-      y: {debugInfo.position?.y?.toFixed(2) ?? '?'}, 
+    Position:
+      x: {debugInfo.position?.x?.toFixed(2) ?? '?'}
+      y: {debugInfo.position?.y?.toFixed(2) ?? '?'}
       z: {debugInfo.position?.z?.toFixed(2) ?? '?'}
     Scale: {typeof debugInfo.scale === 'number' ? debugInfo.scale.toFixed(2) : '?'}
     </textarea>
@@ -344,7 +384,7 @@ $effect(() => {
       <!-- Right pane content -->
   </div>
 </section>
-{/if}  
+{/if}
 </main>
 
 <style>
@@ -352,29 +392,29 @@ $effect(() => {
   :global(*, *::before, *::after) {
     box-sizing: border-box;
   }
-  
+
   :global(body) {
     margin: 0;
     overflow: hidden;
     height: 100vh;
     width: 100vw;
   }
-  
+
   /* Common component styles */
   :global(.video-container) {
     overflow: hidden;
   }
-  
+
   :global(.object-cover) {
     object-fit: cover;
   }
-  
+
   :global(.grayscale-overlay) {
     background: transparent;
     backdrop-filter: grayscale(1) brightness(1) contrast(0.8) saturate(0);
     -webkit-backdrop-filter: grayscale(1) brightness(1) contrast(0.8) saturate(0);
   }
-  
+
   :global(.col-resize) {
     cursor: col-resize;
   }
