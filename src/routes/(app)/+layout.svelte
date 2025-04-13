@@ -1,5 +1,5 @@
 <script>
-// src/routes/(app)/+layout.svelte - REVISED EXECUTION ORDER
+// src/routes/(app)/+layout.svelte - REMOVED CONSOLE INSPECT
 import '$src/app.css';
 import { useSharedContext, createSharedContext } from '$lib/useSharedContext.svelte.js';
 import RightMenu from '$lib/RightMenu.svelte';
@@ -264,20 +264,21 @@ const accessoryPosition = $derived(handController?.position ?? { x: 0, y: 1, z: 
 const accessoryQuaternion = $derived(handController?.quaternion ?? { x: 0, y: 0, z: 0, w: 1 }); // Default to object
 const accessoryScale = $derived(handController?.scale ?? 1);
 
-// Add debug logging with proper Svelte 5 inspection
-$effect(() => {
-  if (!handController) return;
-
-  $inspect('[Layout Accessory Derived Values]:', { // KEEP (Line 281)
-    hasPosition: !!handController.position,
-    hasQuaternion: !!handController.quaternion,
-    hasScale: !!handController.scale,
-    hasVisible: !!handController.visible,
-    visible: accessoryVisible,
-    currentPosition: accessoryPosition,
-    currentScale: accessoryScale
-  });
-});
+// --- REMOVED CONSOLE INSPECT --- 
+// $effect(() => {
+//   if (!handController) return;
+// 
+//   $inspect('[Layout Accessory Derived Values]:', { // KEEP (Line 281)
+//     hasPosition: !!handController.position,
+//     hasQuaternion: !!handController.quaternion,
+//     hasScale: !!handController.scale,
+//     hasVisible: !!handController.visible,
+//     visible: accessoryVisible,
+//     currentPosition: accessoryPosition,
+//     currentScale: accessoryScale
+//   });
+// });
+// --- END REMOVED CONSOLE INSPECT --- 
 
 
 
