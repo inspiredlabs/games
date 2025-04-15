@@ -25,7 +25,7 @@ const DEFAULT_VALUES = {
     dragging: false,
     startX: 0,
     paneDimensions: { leftWidth: 0, rightWidth: 0 },
-    layoutInitialized: false, // Added flag based on +page usage
+    layoutInitialized: false, 
   },
 
   // MediaPipe properties
@@ -50,7 +50,7 @@ const DEFAULT_VALUES = {
 
   // Accessory properties
   accessory: {
-      selectedIndex: 0 // Default to the first accessory
+      selectedIndex: 0 
   }
 };
 
@@ -58,9 +58,9 @@ const DEFAULT_VALUES = {
  * Create and initialize shared context to be called once
  */
 export function createSharedContext() {
-  // Create reactive state object
+  // Create reactive state object for primitive values
   const state = $state({
-    // Flattened state structure for easier access
+    // Layout and video properties
     videoWidth: DEFAULT_VALUES.layout.videoWidth,
     videoHeight: DEFAULT_VALUES.layout.videoHeight,
     dividerPosition: DEFAULT_VALUES.layout.dividerPosition,
@@ -68,8 +68,9 @@ export function createSharedContext() {
     dragging: DEFAULT_VALUES.layout.dragging,
     startX: DEFAULT_VALUES.layout.startX,
     paneDimensions: DEFAULT_VALUES.layout.paneDimensions,
-    layoutInitialized: DEFAULT_VALUES.layout.layoutInitialized, // Initialize flag
+    layoutInitialized: DEFAULT_VALUES.layout.layoutInitialized,
 
+    // MediaPipe properties
     handLandmarks: DEFAULT_VALUES.hand.landmarks,
     handState: DEFAULT_VALUES.hand.state,
     handCenter: DEFAULT_VALUES.hand.center,
@@ -80,6 +81,7 @@ export function createSharedContext() {
     detectionStatus: DEFAULT_VALUES.hand.status,
     mediaPipeLoaded: DEFAULT_VALUES.hand.loaded,
 
+    // Three.js properties
     threeJsReady: DEFAULT_VALUES.three.ready,
     renderCount: DEFAULT_VALUES.three.renderCount,
     particleCount: DEFAULT_VALUES.three.particleCount,
@@ -98,40 +100,41 @@ export function createSharedContext() {
       : 16/9
   );
 
-  // Non-reactive references
-  let _videoElement = null;
-  let _container = null;
-  let _leftPane = null;
-  let _rightPane = null;
-  let _resizer = null;
-  let _videoOverlayGray = null;
-  let _canvas = null;
+  // --- Use $state for element references that need reactivity --- 
+  let _videoElement = $state(null);
+  let _container = $state(null);
+  let _leftPane = $state(null);
+  let _rightPane = $state(null);
+  let _resizer = $state(null);
+  let _videoOverlayGray = $state(null);
+  let _canvas = $state(null);
+  // --- End reactive element references ---
+
+  // Non-reactive references (can remain as let)
   let _canvasContext = null;
   let _threeJsScene = null;
   let _threeJsRenderer = null;
   let _threeJsCamera = null;
-  let _activeController = null; // Reference to the currently active controller instance
+  let _activeController = null; // Controller instance itself doesn't need to be reactive
   let _resizeRAF = null;
   let _lastContainerWidth = 0;
-  let _resizeCleanup = () => {}; // Store the cleanup function for the resize listener
+  let _resizeCleanup = () => {};
 
   // Create the context API with property getters/setters
   const context = {
-    // Layout and video properties
+    // Layout and video properties (Access primitive state)
     get videoWidth() { return state.videoWidth; },
     set videoWidth(v) { state.videoWidth = v; },
     get videoHeight() { return state.videoHeight; },
     set videoHeight(v) { state.videoHeight = v; },
     get dividerPosition() { return state.dividerPosition; },
-    // dividerPosition is updated via updateLayout method
     get videoReady() { return state.videoReady; },
     set videoReady(v) { state.videoReady = v; },
     get dragging() { return state.dragging; },
-    // dragging is updated via pointer methods
-    get layoutInitialized() { return state.layoutInitialized; }, // Getter for flag
-    set layoutInitialized(v) { state.layoutInitialized = v; }, // Setter for flag
+    get layoutInitialized() { return state.layoutInitialized; }, 
+    set layoutInitialized(v) { state.layoutInitialized = v; }, 
 
-    // MediaPipe properties
+    // MediaPipe properties (Access primitive state)
     get handLandmarks() { return state.handLandmarks; },
     set handLandmarks(v) { state.handLandmarks = v; },
     get handState() { return state.handState; },
@@ -140,23 +143,8 @@ export function createSharedContext() {
     set handCenter(v) { state.handCenter = v; },
     get handCenterSmoothed() { return state.handCenterSmoothed; },
     set handCenterSmoothed(v) { state.handCenterSmoothed = v; },
-    
-    // log grip
     get avgFingerTipDistance() { return state.avgFingerTipDistance; },
     set avgFingerTipDistance(v) { state.avgFingerTipDistance = v; },
-
-    // --- Active Controller (ESSENTIAL) ---
-    get activeController() { return _activeController; },
-    set activeController(controllerInstance) {
-        // Check if the instance actually changed to avoid unnecessary logs/updates
-        if (_activeController !== controllerInstance) {
-            _activeController = controllerInstance;
-            // Optional: Log when the controller changes
-            // console.log('[Context] Active controller updated:', controllerInstance ? controllerInstance.debugState?.controllerType : 'None');
-        }
-    },
-    // --- End Active Controller ---
-
     get handFound() { return state.handFound; },
     set handFound(v) { state.handFound = v; },
     get handDetectionReady() { return state.handDetectionReady; },
@@ -166,7 +154,16 @@ export function createSharedContext() {
     get mediaPipeLoaded() { return state.mediaPipeLoaded; },
     set mediaPipeLoaded(v) { state.mediaPipeLoaded = v; },
 
-    // Three.js properties
+    // --- Active Controller (Remains non-reactive reference) ---
+    get activeController() { return _activeController; },
+    set activeController(controllerInstance) {
+        if (_activeController !== controllerInstance) {
+            _activeController = controllerInstance;
+        }
+    },
+    // --- End Active Controller ---
+
+    // Three.js properties (Access primitive state)
     get threeJsReady() { return state.threeJsReady; },
     set threeJsReady(v) { state.threeJsReady = v; },
     get renderCount() { return state.renderCount; },
@@ -176,7 +173,7 @@ export function createSharedContext() {
     get lastRenderTime() { return state.lastRenderTime; },
     set lastRenderTime(v) { state.lastRenderTime = v; },
 
-    // --- Accessory Getters/Setters ---
+    // Accessory Getters/Setters (Access primitive state)
     get handAccessories() { return HAND_ACCESSORIES_LIST; },
     get selectedAccessoryIndex() { return state.selectedAccessoryIndex; },
     set selectedAccessoryIndex(index) {
@@ -184,7 +181,6 @@ export function createSharedContext() {
         if (!isNaN(idx) && idx >= 0 && idx < HAND_ACCESSORIES_LIST.length) {
             if (state.selectedAccessoryIndex !== idx) {
                 state.selectedAccessoryIndex = idx;
-                // console.log(`[Context] Accessory index updated to: ${idx} (${this.selectedAccessory?.name})`);
             }
         } else {
             console.warn(`[Context] Invalid accessory index set attempt: ${index}`);
@@ -193,11 +189,24 @@ export function createSharedContext() {
     get selectedAccessory() {
         return HAND_ACCESSORIES_LIST[state.selectedAccessoryIndex] || null;
     },
-    // --- End Accessory ---
 
-    // Resource references
-    get canvas() { return _canvas; },
-    set canvas(v) { _canvas = v; },
+    // --- Resource references: Use reactive getters/setters for DOM elements --- 
+    get canvas() { return _canvas; }, // Return reactive state
+    // No setter needed externally? Layout uses setElements
+    get leftPane() { return _leftPane; }, // Return reactive state
+    // No setter needed externally?
+    get container() { return _container; }, // Return reactive state
+     // No setter needed externally?
+    get rightPane() { return _rightPane; }, // Return reactive state
+     // No setter needed externally?
+    get resizer() { return _resizer; }, // Return reactive state
+     // No setter needed externally?
+    get videoOverlayGray() { return _videoOverlayGray; }, // Return reactive state
+     // No setter needed externally?
+    getVideoElement() { return _videoElement; }, // Return reactive state via method
+    // --- End reactive element getters/setters ---
+
+    // Non-reactive getters/setters (remain as before)
     get canvasContext() { return _canvasContext; },
     set canvasContext(v) { _canvasContext = v; },
     get threeJsScene() { return _threeJsScene; },
@@ -217,57 +226,49 @@ export function createSharedContext() {
     isReady() {
       return state.ready;
     },
-    getVideoElement() {
-      return _videoElement;
-    },
+    // getVideoElement handled above
 
-    // Set DOM references
+    // Set DOM references (Now assigns to reactive state variables)
     setElements(elements) {
-      // Keep original implementation - ensure all refs are included
       const { container, leftPane, rightPane, resizer, videoElement, videoOverlayGray, handCanvas } = elements;
 
+      // Assign to the reactive $state variables
       if (container) _container = container;
       if (leftPane) _leftPane = leftPane;
       if (rightPane) _rightPane = rightPane;
       if (resizer) _resizer = resizer;
       if (videoElement) _videoElement = videoElement;
       if (videoOverlayGray) _videoOverlayGray = videoOverlayGray;
-      // If handCanvas is passed separately, handle it here or via direct setter
       if (handCanvas) _canvas = handCanvas;
 
+      // Keep the logic for initial container width
       if (_container && !_lastContainerWidth) {
         _lastContainerWidth = _container.offsetWidth;
       }
     },
 
-    // Layout management - Keep original implementation
+    // Layout management (Needs to access reactive refs now)
     updateLayout(newDividerPos) {
       if (!_container) {
-          // console.warn("[Context] updateLayout called before container element is set.");
-          return state.dividerPosition; // Return current state if no container
+          return state.dividerPosition;
       }
 
       const containerWidth = _container.offsetWidth;
-      // Ensure divider stays within reasonable bounds (e.g., 50px from each edge)
       const boundedPos = Math.max(50, Math.min(containerWidth - 50, newDividerPos));
 
-      // Update DOM elements directly using refs
+      // Update DOM elements directly using reactive refs
       if (_leftPane) _leftPane.style.width = `${boundedPos}px`;
       if (_rightPane) _rightPane.style.width = `${containerWidth - boundedPos}px`;
-      if (_resizer) _resizer.style.left = `${boundedPos}px`; // Position based on left edge of right pane/end of left pane
+      if (_resizer) _resizer.style.left = `${boundedPos}px`;
 
-      // Update clip path for grayscale overlay based on the *divider position*
       if (_videoOverlayGray) {
-        // Clip everything to the *right* of the divider position
         _videoOverlayGray.style.clipPath = `inset(0 0 0 ${boundedPos}px)`;
       }
 
-      // Update reactive state only if the bounded position actually changed
       if (state.dividerPosition !== boundedPos) {
         state.dividerPosition = boundedPos;
       }
 
-      // Update stored pane dimensions after layout change
        if (_leftPane && _rightPane) {
            state.paneDimensions = {
                leftWidth: _leftPane.offsetWidth,
@@ -275,51 +276,40 @@ export function createSharedContext() {
            };
        }
 
-
-      return boundedPos; // Return the final applied position
+      return boundedPos;
     },
 
-
-    // Window resize handler - Keep original implementation
+    // Window resize handler (Needs to access reactive container ref)
     handleResize() {
       if (typeof window === 'undefined') return;
       if (_resizeRAF) cancelAnimationFrame(_resizeRAF);
-    
+
       _resizeRAF = requestAnimationFrame(() => {
         if (!_container) return;
-        
+
         const containerWidth = _container.offsetWidth;
         if (containerWidth === _lastContainerWidth) return;
-        
-        // CRITICAL FIX: Calculate divider position as a proportion of container width
+
         const ratio = state.dividerPosition / _lastContainerWidth;
         const newPosition = Math.round(containerWidth * ratio);
-        
-        // Update last width AFTER using it for calculation
+
         _lastContainerWidth = containerWidth;
-        
-        // Update layout with the new position
+
         context.updateLayout(newPosition);
       });
     },
 
-
-    // Pointer event handlers - Keep original implementations
+    // Pointer event handlers (Needs to access reactive container ref)
     pointermove(e) {
-      if (!state.dragging) return;
-      // Use clientX consistently
+      if (!state.dragging || !_container) return;
       const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-      
-      // New potential position based on initial pane width + delta
       const containerRect = _container.getBoundingClientRect();
       const newPos = currentX - containerRect.left;
-      
-      context.updateLayout(newPos); // updateLayout handles bounding
+      context.updateLayout(newPos);
     },
 
     pointerend() {
-      if (!state.dragging || !_container) return; // Ensure container exists
-
+      if (!state.dragging || !_container) return;
       state.dragging = false;
       if (document) document.body.style.cursor = 'default';
       if (typeof window !== 'undefined') {
@@ -328,100 +318,102 @@ export function createSharedContext() {
         window.removeEventListener('touchmove', context.pointermove);
         window.removeEventListener('touchend', context.pointerend);
       }
-      console.log("[Context] Dragging ended.");
     },
 
-    
-
     pointerstart(e) {
+      if(!_container) return; // Ensure container exists before starting drag
       state.startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
       state.dragging = true;
-      
+
       if (_leftPane && _rightPane) {
         state.paneDimensions = {
           leftWidth: _leftPane.offsetWidth,
           rightWidth: _rightPane.offsetWidth
         };
       }
-      
+
       if (document) document.body.style.cursor = 'col-resize';
-      
-      // Add all event listeners
+
       if (typeof window !== 'undefined') {
         window.addEventListener('mousemove', context.pointermove);
         window.addEventListener('mouseup', context.pointerend);
         window.addEventListener('touchmove', context.pointermove, { passive: false });
         window.addEventListener('touchend', context.pointerend);
       }
-      
+
       if (e?.preventDefault) e.preventDefault();
     },
 
-    // Camera initialization - Keep original implementation
+    // Camera initialization (Needs to access reactive videoElement ref)
     async initCamera() {
-      if (typeof window === 'undefined' || !_videoElement) return;
+      // Check reactive _videoElement directly
+      if (typeof window === 'undefined' || !_videoElement) {
+          console.warn('[Context initCamera] No video element ref yet.');
+          return; // Wait for element
+      }
       if (state.videoReady) return; // Avoid re-init
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
         });
-        _videoElement.srcObject = stream;
-        await new Promise((resolve, reject) => {
-            _videoElement.onloadedmetadata = () => {
-              state.videoReady = true;
-              state.videoWidth = _videoElement.videoWidth;
-              state.videoHeight = _videoElement.videoHeight;
-              resolve();
-            };
-             _videoElement.onerror = reject;
-        });
+        // Assign stream only if element exists (redundant check, but safe)
+        if (_videoElement) {
+             _videoElement.srcObject = stream;
+             await new Promise((resolve, reject) => {
+                 _videoElement.onloadedmetadata = () => {
+                    state.videoReady = true;
+                    state.videoWidth = _videoElement.videoWidth;
+                    state.videoHeight = _videoElement.videoHeight;
+                    resolve();
+                 };
+                 _videoElement.onerror = reject;
+             });
+         } else {
+            throw new Error("Video element reference became null during initCamera.");
+         }
       } catch (error) {
-        console.error('Camera access error:', error.name, error.message);
+        console.error('[Context] Camera access error:', error.name, error.message);
         state.videoReady = false;
+        throw error; // Re-throw error
       }
     },
 
-    // Cleanup function - Keep original implementation
+    // Cleanup function
     cleanup() {
-      // Use the stored cleanup function from setupResizeListener
       _resizeCleanup();
-      _resizeCleanup = () => {}; // Clear stored cleanup after calling
-
+      _resizeCleanup = () => {};
       if (_resizeRAF) { cancelAnimationFrame(_resizeRAF); _resizeRAF = null; }
-      // Ensure pointer listeners are removed if cleanup happens mid-drag
       if (state.dragging) { context.pointerend(); }
+      _activeController = null;
 
-      // Clear controller reference on full cleanup
-      _activeController = null; // <--- ESSENTIAL: Ensure controller reference is cleared on full cleanup
-        // console.log("[Context] Cleanup executed.");
+      // Reset reactive element refs
+      _videoElement = null;
+      _container = null;
+      _leftPane = null;
+      _rightPane = null;
+      _resizer = null;
+      _videoOverlayGray = null;
+      _canvas = null;
 
       console.log("[Context] Cleanup executed.");
-       // Reset layout initialized flag on full cleanup maybe?
-       // state.layoutInitialized = false; // Consider if needed
     },
 
-    // Setup resize listener - Store cleanup function
+    // Setup resize listener
     setupResizeListener() {
       if (typeof window !== 'undefined') {
-        // Clean up previous listener before adding new one
         _resizeCleanup();
-
-        const handler = context.handleResize; // Reference the handler
+        const handler = context.handleResize;
         window.addEventListener('resize', handler, { passive: true });
-        console.log("[Context] Resize listener added.");
-        // Store the specific cleanup for this listener
         _resizeCleanup = () => {
             if (typeof window !== 'undefined') {
                 window.removeEventListener('resize', handler);
-                console.log("[Context] Resize listener removed via stored cleanup.");
             }
-             if (_resizeRAF) { cancelAnimationFrame(_resizeRAF); _resizeRAF = null;} // Also clear RAF on cleanup
+             if (_resizeRAF) { cancelAnimationFrame(_resizeRAF); _resizeRAF = null;}
         };
-        // Return the stored cleanup function so caller's $effect can use it
         return _resizeCleanup;
       }
-      return () => {}; // Return no-op if no window
+      return () => {};
     }
   };
 
@@ -431,29 +423,31 @@ export function createSharedContext() {
 }
 
 /**
- * Create a dummy context for safety (Update with accessory defaults)
+ * Create a dummy context for safety
  */
 function createDummyContext() {
-  // Keep previous dummy implementation, ensure accessory defaults are included
+  // Reflect the structure, including reactive elements being null initially
   return {
     ready: false, videoWidth: 0, videoHeight: 0, dividerPosition: 500, videoReady: false, dragging: false, layoutInitialized: false,
     handLandmarks: [], handState: 'unknown', handCenter: null, handCenterSmoothed: null, handFound: false,
     handDetectionReady: false, detectionStatus: 'Initializing...', mediaPipeLoaded: false,
     threeJsReady: false, renderCount: 0, particleCount: 0, lastRenderTime: 0, aspectRatio: 16/9,
     handAccessories: [], selectedAccessoryIndex: -1, selectedAccessory: null,
-    
-    activeController: null, // <--- ESSENTIAL: Include in dummy context
-
-    canvas: null, canvasContext: null, threeJsScene: null, threeJsRenderer: null, threeJsCamera: null,
+    activeController: null,
+    // Provide null for elements that are now reactive in the real context
+    canvas: null, leftPane: null, container: null, rightPane: null, resizer: null, videoOverlayGray: null, 
+    // Non-reactive elements
+    canvasContext: null, threeJsScene: null, threeJsRenderer: null, threeJsCamera: null,
     getSafe: (key, defaultValue = null) => defaultValue, isReady: () => false, updateLayout: () => {},
     handleResize: () => {}, pointermove: () => {}, pointerend: () => {}, pointerstart: () => {},
     initCamera: () => Promise.resolve(), cleanup: () => {}, setupResizeListener: () => () => {},
-    setElements: () => {}, getVideoElement: () => null
+    setElements: () => {}, 
+    getVideoElement: () => null // Method still returns null in dummy
   };
 }
 
 /**
- * Retrieves shared context, called during component init (Keep as is)
+ * Retrieves shared context, called during component init
  */
 export function useSharedContext() {
   try {

@@ -100,8 +100,11 @@ export async function initCamera(Camera, videoElement, onFrame) {
 /**
  * Initialize MediaPipe with direct video element reference
  */
-export async function initializeWithVideoElement(videoElement, canvas = null) {
-  const context = useSharedContext();
+export async function initializeWithVideoElement(videoElement, canvas = null, context) {
+  // Ensure context is passed or retrieved
+  if (!context) {
+    context = useSharedContext(); 
+  }
   
   if (!videoElement) {
     return { success: false, message: 'Video element not provided' };
@@ -134,75 +137,22 @@ export async function initializeWithVideoElement(videoElement, canvas = null) {
     // Set up canvas if needed
     let ctx;
     if (canvas) {
-      // Use provided canvas
       ctx = canvas.getContext('2d');
-      context.canvas = canvas;
+      context.canvas = canvas; // Update context even if canvas provided
       context.canvasContext = ctx;
     } else if (context.canvas && context.canvasContext) {
-      // Get from context if already set
       canvas = context.canvas;
       ctx = context.canvasContext;
     } else {
-      // Create new canvas with full window dimensions
-      canvas = document.createElement('canvas');
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      
-      // Full viewport styling
-      canvas.style.position = 'fixed';
-      canvas.style.top = '0';
-      canvas.style.left = '0';
-      canvas.style.width = '100vw';
-      canvas.style.height = '100vh';
-      canvas.style.zIndex = '5';
-      canvas.style.pointerEvents = 'none';
-      canvas.style.border = '3px solid gold';
-      
-      // Apply initial clip path based on divider position
-      canvas.style.clipPath = `polygon(${context.dividerPosition}px 0, 100% 0, 100% 100%, ${context.dividerPosition}px 100%)`;
-      
-      // Create context and store references
-      ctx = canvas.getContext('2d');
-      context.canvas = canvas;
-      context.canvasContext = ctx;
-      
-      // Setup divider position watcher
-      const dividerWatcher = () => {
-        requestAnimationFrame(() => {
-          if (canvas && context.dividerPosition) {
-            canvas.style.clipPath = `polygon(${context.dividerPosition}px 0, 100% 0, 100% 100%, ${context.dividerPosition}px 100%)`;
-          }
-        });
-      };
-      
-      // Watch for context updates
-      const originalUpdateLayout = context.updateLayout;
-      context.updateLayout = (pos) => {
-        const result = originalUpdateLayout(pos);
-        dividerWatcher();
-        return result;
-      };
-      
-      // Handle window resize
-      const handleResize = () => {
-        requestAnimationFrame(() => {
-          if (canvas) {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            log(`Canvas resized to ${canvas.width}x${canvas.height}`);
-          }
-        });
-      };
-      window.addEventListener('resize', handleResize);
-      
-      // Initial call to set clip path
-      dividerWatcher();
+       console.warn('[MediaPipe Service] Canvas not provided and not found in context. Drawing disabled.');
     }
     
-    // Append canvas to document if not already added
-    if (canvas && !canvas.parentNode) {
-      document.body.appendChild(canvas);
-      log('Canvas appended to document body');
+    // Append canvas to document if provided and not already added
+    if (canvas && !canvas.parentNode && document?.body) { 
+      // document.body.appendChild(canvas); 
+      // log('Canvas appended to document body');
+    } else if (canvas && canvas.parentNode) {
+      // log('Canvas already in document.');
     }
     
     // Initialize smoothing stores
@@ -210,31 +160,27 @@ export async function initializeWithVideoElement(videoElement, canvas = null) {
     
     // Configure hand detection callback
     hands.onResults((results) => {
+        
+      // --- MODIFIED LOG --- 
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-
-        // Update context with hand data
-        const landmarks = results.multiHandLandmarks[0]; // Use the first hand's landmarks
+        console.log(`[MediaPipe Service onResults] Found ${results.multiHandLandmarks.length} hand(s).`);
+      } else {
+        console.log('[MediaPipe Service onResults] No hands found.'); // <-- UNCOMMENTED THIS LINE
+      }
+      // --- END LOG --- 
+        
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0]; 
 
         context.handLandmarks = results.multiHandLandmarks;
         context.handState = getDetailedHandPose(landmarks);
         context.handCenter = calculateHandCenter(landmarks);
         context.handFound = true;
-
-        context.handFound = true;
         context.detectionStatus = `Hand detected: ${context.handState}`;
         
-        // Update smoothed values
-        const { centerStore } = updateSmoothedValues(
-          results.multiHandLandmarks, 
-          context.handCenter
-        );
+        const { centerStore } = updateSmoothedValues(results.multiHandLandmarks, context.handCenter);
+        centerStore.subscribe(value => { context.handCenterSmoothed = value; });
         
-        // Store smoothed value in context
-        centerStore.subscribe(value => {
-          context.handCenterSmoothed = value;
-        });
-        
-        // Draw landmarks if canvas is available
         if (ctx && canvas) {
           drawHandLandmarks(
             ctx, 
@@ -246,32 +192,24 @@ export async function initializeWithVideoElement(videoElement, canvas = null) {
           );
         }
       } else {
-        // Reset when no hand detected
         if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
         context.handLandmarks = [];
         context.handState = 'unknown';
         context.handCenter = null;
         context.handCenterSmoothed = null;
         context.handFound = false;
         context.detectionStatus = 'No hand detected';
-        updateSmoothedValues([], null); // Reset smoothing
+        updateSmoothedValues([], null); 
       }
 
-      // --- ESSENTIAL ADDITION: UPDATE CONTROLLER ---
-      // Always call update, passing landmarks or empty array if none detected
       if (context.activeController) {
-        // Pass the multiHandLandmarks array, controller decides which hand(s) to use
-        context.activeController.update(results.multiHandLandmarks);
+        context.activeController.update(results.multiHandLandmarks); // Always call update
       }
-      // --- END ESSENTIAL ADDITION ---
       
-      // Update frame counter
       context.renderCount = (context.renderCount || 0) + 1;
     });
     
     try {
-      // Initialize camera with MediaPipe processing
       context.detectionStatus = 'Starting camera with hand detection...';
       await initCamera(Camera, videoElement, async () => {
         try {
@@ -281,24 +219,25 @@ export async function initializeWithVideoElement(videoElement, canvas = null) {
         }
       });
       
-      // Update context state
       context.mediaPipeLoaded = true;
       context.handDetectionReady = true;
       context.detectionStatus = 'MediaPipe ready and running';
       
       return { success: true, message: 'MediaPipe initialized successfully' };
     } catch (cameraError) {
-      // Fallback to manual processing if camera fails
-      log('Using fallback processing');
+      log('Camera initialization with MediaPipe failed, attempting fallback processing', cameraError);
       context.detectionStatus = 'Using fallback processing...';
       
-      // Inline the manual processing
-      context.animationId = requestAnimationFrame(function process() {
+      // Fallback manual processing loop
+      let animFrameId = null;
+      function process() {
+        if (!context.mediaPipeLoaded) return; // Stop if cleaned up
         if (videoElement.readyState >= 2) {
-          hands.send({image: videoElement}).catch(e => log('Process error:', e));
+          hands.send({image: videoElement}).catch(e => log('Manual process error:', e));
         }
-        context.animationId = requestAnimationFrame(process);
-      });
+        animFrameId = requestAnimationFrame(process);
+      };
+      animFrameId = requestAnimationFrame(process);
       
       context.mediaPipeLoaded = true;
       context.handDetectionReady = true;
@@ -307,6 +246,7 @@ export async function initializeWithVideoElement(videoElement, canvas = null) {
       return { success: true, message: 'MediaPipe initialized with fallback processing' };
     }
   } catch (error) {
+    log('Error in initializeWithVideoElement:', error); // Log top-level errors
     context.detectionStatus = `Error: ${error.message}`;
     return { success: false, message: error.message };
   }
