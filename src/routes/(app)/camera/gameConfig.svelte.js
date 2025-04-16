@@ -17,7 +17,7 @@ export const gameConfig = {
     controllers: [
         { type: 'oneHand',
           factory: createOneHandController,
-          options: { fistThreshold: 0.16 }
+          options: { fistThreshold: 0.21 }
         }
         /* Future concept:
         * ideal for flying like superman, a bike or a boxing game:

@@ -6,35 +6,6 @@ community assistance: reddit.com/r/sveltejs/comments/1j9j43i/comment/mhdjv25/?co
 ---
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```
-My project is written in `Svelte 5 runes syntax` and it works well. Read `repomix-output.text` to understand my project. wait. Do not use deprecated syntax. There's a few issues I want to work through. 1. DebugAccessoryVisualizer, doesn't load 'Avg Fingertip Distance' it says N/A, but the console returns: ```Average fingertip distance: 0.317
-mediapipeService.svelte.js:24
-[MediaPipe 17:16:29]
-Average fingertip distance: 0.316
-mediapipeService.svelte.js:24
-[MediaPipe 17:16:29]
-Average fingertip distance: 0.284```, wait. Do NOT rewrite large parts of my application. ONLY help by suggesting a minimal code correction, THAT MEANS AS FEW LOC change as possible, then where to remove Average fingertip distance in the console. wait. 2. I will write the next issue, don't elaborate or create new functionality. do NOT use deprecated syntax:
-- no: <svelte:component this={HandAccessory}>
-- no: on:change, etc
-- no: onMount, onDestroy
-- no: $: reactiveVar
-```
-
 Runes and Global state: do's and don'ts
 =======================================
 
@@ -806,7 +777,7 @@ svelte
     sharedContext.someFlag = isActive;
   }
 </script>
-  
+
 <!-- Component Template -->
 <div bind:this={elementRef} class="component-wrapper">
   <button on:click={handleEvent}>
