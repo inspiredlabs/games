@@ -1,0 +1,3712 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+
+Additional Info:
+----------------
+
+================================================================
+Directory Structure
+================================================================
+.idx/
+  dev.nix
+src/
+  lib/
+    controllerOneHand.svelte.js
+    DebugController.svelte
+    DebugHandAccessory.svelte
+    DebugMediaPipe.svelte
+    DebugSceneInfo.svelte
+    Defs.svelte
+    handGestureUtils.js
+    Loader.svelte
+    MediaPipeDebug.svelte
+    mediapipeService.svelte.js
+    RightMenu.svelte
+    ThreeScene.svelte
+    useSharedContext.svelte.js
+    wireframeHandDrawing.js
+  routes/
+    (app)/
+      axe/
+        +page.svelte
+        Axe.svelte
+        data.json
+      camera/
+        +page.svelte
+        Axe.svelte
+        data.json
+        gameConfig.svelte.js
+        Sword.svelte
+        Wand.svelte
+      sword/
+        +page.svelte
+        Sword.svelte
+      +layout.svelte
+    +layout.svelte
+    +page.svelte
+  hooks.server.js
+.gitignore
+.npmrc
+.repomixignore
+eslint.config.js
+package.json
+svelte.config.js
+svelte.config.mjs
+tsconfig.json
+vite.config.ts
+
+================================================================
+Files
+================================================================
+
+================
+File: .idx/dev.nix
+================
+{pkgs}: {
+  channel = "stable-24.05";
+  packages = [
+    pkgs.nodejs_20
+  ];
+  idx.extensions = [
+    "svelte.svelte-vscode"
+    "vue.volar"
+  ];
+  idx.previews = {
+    previews = {
+      web = {
+        command = [
+          "npm"
+          "run"
+          "dev"
+          "--"
+          "--port"
+          "$PORT"
+          "--host"
+          "0.0.0.0"
+        ];
+        manager = "web";
+      };
+    };
+  };
+}
+
+================
+File: src/lib/controllerOneHand.svelte.js
+================
+/* HOW TO USE THIS COMPONENT:
+	// In your main app or parent component
+	import { setContext } from 'svelte';
+	// Assuming you have a controller instance
+	const controller = createOneHandController();
+	// Set the controller in context
+	setContext('controller', controller);
+	// In your debug component
+	import { getContext } from 'svelte';
+	// Get the controller from context
+	const controller = getContext('controller');
+	// Access debug state
+	console.log(controller.debugState);
+*/
+
+/* HOW TO CLONE AND START A NEW CONTROLLER
+* Add an overview description
+* consider both hand states when determining derived properties
+* Processing both hands and their relationship to each other:
+* const leftHandLandmarks = landmarks[0];
+* const rightHandLandmarks = landmarks[1];
+
+function calculateTransformForHand(landmarks, handSide) {
+	// Similar to original but 
+	// adapted for each hand
+	// and their relationship to each other
+	// like distance apart for bike handle bars
+	// perplexity.ai/search/i-want-to-annotate-a-javascrip-iL7ymk5PTN.Sjf8z5dYNIg
+} */
+
+/*
+* About `$lib/controllerOneHand.svelte.js`
+
+* @typedef {Object} DebugState
+* @property {string} controllerType
+* @property {string} stableState
+* @property {number} avgDistance
+* @property {boolean} isTracking
+* @property {{x: number, y: number, z: number}} targetPosition
+* @property {number} currentScale
+* @property {string} message
+
+* In terms of HID (human interface device), this is only for a single object with a handle and only works with one hand.
+* Examples: `Wand`, `Sword`, `Axe`.
+
+* It is a stateful module factory. It uses functions from handGestureUtils.js but adds the crucial layers of:
+* 	State Management: Tracking stableHandState, stateCounter.
+* 	Configuration: fistThreshold, zScaleFactor, depthRange, stabilityThreshold.
+* 	Smoothing/Interpolation: Using Tween for position, quaternion, scale.
+* 	Derived Logic: Determining visible based on stableHandState.
+* 	Encapsulated Logic: Bundling the specific steps to calculate accessory transforms based on the one-handed fist interaction model.
+* Integration:
+* 	This component uses context to make the active controller instance itself available globally.
+* 	The debug component will then read the reactive debug state directly from the controller instance found in the context.
+*/
+
+// src/lib/controllerOneHand.svelte.js
+// src/lib/controllerOneHand.svelte.js
+// Based on the improved logic from WandVisualizer.svelte test case
+// FIX: Convert THREE.Quaternion to plain object for tweening
+// src/lib/controllerOneHand.svelte.js
+// REVERTED: Controller calculates TARGET values and exposes them via $state.
+
+// src/lib/controllerOneHand.svelte.js
+import {
+	calculateHandCenter,
+	calculateDistance
+} from '$lib/handGestureUtils.js';
+import * as THREE from 'three';
+
+// Default configurations
+const DEFAULT_FIST_THRESHOLD = 0.15;
+const DEFAULT_Z_SCALE_FACTOR = 1;
+const DEFAULT_DEPTH_RANGE = { min: -5, max: 5 };
+const DEFAULT_STABILITY_THRESHOLD = 5;
+const MAP_WIDTH = 10;
+const MAP_HEIGHT = 10;
+const SCALE_FACTOR_MULTIPLIER = 5.0;
+const SCALE_OFFSET = 0.5;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 3.0;
+const PALM_NORMAL_STABILIZATION_THRESHOLD = 0.0001;
+
+export function createOneHandController(options = {}) {
+  // console.log('[Controller] Creating controller with options:', options); // Suppress log
+
+  // --- Configuration ---
+  let fistThreshold = $state(options.fistThreshold ?? DEFAULT_FIST_THRESHOLD);
+  let zScaleFactor = $state(options.zScaleFactor ?? DEFAULT_Z_SCALE_FACTOR);
+  let depthRange = $state(options.depthRange ?? DEFAULT_DEPTH_RANGE);
+  let stabilityThreshold = $state(options.stabilityThreshold ?? DEFAULT_STABILITY_THRESHOLD);
+
+  // --- Reactive Outputs as plain $state ---
+  let position = $state({ x: 0, y: 1, z: 0 });
+  let quaternion = $state({ x: 0, y: 0, z: 0, w: 1 });
+  let scale = $state(1);
+  let visible = $state(false);
+
+  // --- Debug State ---
+  let debugState = $state({
+    controllerType: 'OneHandController',
+    stableState: 'unknown',
+    avgDistance: 0,
+    isTracking: false,
+    targetPosition: { x: 0, y: 1, z: 0 },
+    targetScale: 1,
+    message: 'Initializing...'
+  });
+
+  // --- Internal State ---
+  let currentHandState = 'unknown';
+  let stateCounter = 0;
+  let previousPalmNormal = new THREE.Vector3(0, 0, 1);
+
+  // --- THREE Helpers ---
+  const _vec1 = new THREE.Vector3(), _vec2 = new THREE.Vector3(), _vec3 = new THREE.Vector3();
+  const _palmNormalRaw = new THREE.Vector3(), _palmNormal = new THREE.Vector3();
+  const _dir = new THREE.Vector3(), _xAxis = new THREE.Vector3(), _zAxis = new THREE.Vector3();
+  const _mat4 = new THREE.Matrix4(), _quat = new THREE.Quaternion();
+
+  // --- Core Logic ---
+  let stableHandState = $derived(debugState.stableState);
+
+  function updateStableState(newState) {
+    if (newState === debugState.stableState) stateCounter = 0;
+    else {
+      stateCounter++;
+      if (stateCounter >= stabilityThreshold) {
+        debugState.stableState = newState;
+        stateCounter = 0;
+      }
+    }
+  }
+
+  function getHandStateBasedOnDistance(landmarks, threshold) {
+    if (!landmarks || landmarks.length < 21) return 'unknown';
+    const wrist = landmarks[0];
+    const tipIndices = [4, 8, 12, 16, 20];
+    let totalDistance = 0, validCount = 0;
+    
+    for (const index of tipIndices) {
+      if (landmarks[index]) {
+        if (wrist && landmarks[index]) {
+          totalDistance += calculateDistance(wrist, landmarks[index]);
+          validCount++;
+        }
+      }
+    }
+    
+    if (validCount === 0) return 'unknown';
+    const avgDistance = totalDistance / validCount;
+    
+    debugState.avgDistance = avgDistance;
+    
+    if (avgDistance < threshold) return 'fist';
+    if (avgDistance > threshold * 1.8) return 'palm';
+    return 'unknown';
+  }
+
+  function mapLandmarkToInternal3D(landmark, target = new THREE.Vector3()) {
+    if (!landmark) return target.set(0, 0, 0);
+    target.x = (landmark.x - 0.5) * MAP_WIDTH;
+    target.y = (0.5 - landmark.y) * MAP_HEIGHT;
+    target.z = landmark.z * 1;
+    return target;
+  }
+
+  // --- Calculate Transform (Updates internal $state values) ---
+  function calculateTransform(landmarks) {
+    const handCenter = calculateHandCenter(landmarks);
+    
+    if (!handCenter || landmarks.length < 21 || !landmarks[0] || !landmarks[5] || !landmarks[17] || !landmarks[12]) return;
+    
+    const rawZ = handCenter.z;
+    let scaledZ;
+    const epsilon = 1e-6;
+    
+    if (rawZ >= 0) 
+      scaledZ = Math.log(rawZ + 1 + epsilon) * zScaleFactor;
+    else 
+      scaledZ = -Math.log(Math.abs(rawZ) + 1 + epsilon) * zScaleFactor;
+    
+    const targetZ = Math.max(depthRange.min, Math.min(depthRange.max, scaledZ));
+    const targetX = (handCenter.x - 0.5) * MAP_WIDTH;
+    const targetY = (0.5 - handCenter.y) * MAP_HEIGHT;
+    
+    const finalPos = {
+      x: !isNaN(targetX) ? targetX : 0,
+      y: !isNaN(targetY) ? targetY : 0,
+      z: !isNaN(targetZ) ? targetZ : 0
+    };
+    
+    // Update position $state
+    position = finalPos;
+    debugState.targetPosition = finalPos;
+    
+    // Calculate orientation
+    const wrist3D = mapLandmarkToInternal3D(landmarks[0], _vec1);
+    const indexMCP3D = mapLandmarkToInternal3D(landmarks[5], _vec2);
+    const pinkyMCP3D = mapLandmarkToInternal3D(landmarks[17], _vec3);
+    const middleTip3D = mapLandmarkToInternal3D(landmarks[12], _dir);
+    
+    _vec1.subVectors(indexMCP3D, wrist3D);
+    _vec2.subVectors(pinkyMCP3D, wrist3D);
+    _palmNormalRaw.crossVectors(_vec1, _vec2);
+    
+    if (_palmNormalRaw.lengthSq() < PALM_NORMAL_STABILIZATION_THRESHOLD) {
+      _palmNormal.copy(previousPalmNormal);
+    } else {
+      _palmNormal.copy(_palmNormalRaw).normalize();
+      if (previousPalmNormal.dot(_palmNormal) < 0) _palmNormal.negate();
+    }
+    previousPalmNormal.copy(_palmNormal);
+    
+    _dir.subVectors(middleTip3D, wrist3D).normalize();
+    _zAxis.copy(_palmNormal).projectOnPlane(_dir).normalize();
+    _xAxis.crossVectors(_dir, _zAxis).normalize();
+    
+    if (_xAxis.lengthSq() > 0.1 && _dir.lengthSq() > 0.1 && _zAxis.lengthSq() > 0.1) {
+      _mat4.makeBasis(_xAxis, _dir, _zAxis);
+      _quat.setFromRotationMatrix(_mat4);
+
+			 // -- TEMPORARY FIX --
+			 // Flip the accessory by rotating 180 degrees around X axis
+			const flipQuat = new THREE.Quaternion().setFromAxisAngle(
+				new THREE.Vector3(1, 0, 0), // X axis
+				Math.PI // 180 degrees in radians
+			);
+			_quat.multiply(flipQuat);
+			// -- TEMPORARY FIX --
+      
+      // Update quaternion $state
+      quaternion = {
+        x: _quat.x,
+        y: _quat.y,
+        z: _quat.z,
+        w: _quat.w
+      };
+    }
+    
+    // Calculate scale
+    const handWidth = calculateDistance(landmarks[5], landmarks[17]);
+    const scaleDenominator = Math.max(0.01, rawZ + SCALE_OFFSET);
+    const scaleFactor = (handWidth * SCALE_FACTOR_MULTIPLIER) / scaleDenominator;
+    const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scaleFactor));
+    
+    // Update scale $state
+    scale = clampedScale;
+    debugState.targetScale = clampedScale;
+  }
+
+  // --- Public Update Method ---
+  function update(multiHandLandmarks) {
+    // console.log('>>> [Controller] update() called', multiHandLandmarks); // REMOVED LOG
+    const currentLandmarks = multiHandLandmarks?.[0];
+    if (!currentLandmarks || currentLandmarks.length < 21) {
+      if (visible) visible = false;
+      updateStableState('unknown');
+      debugState.isTracking = false;
+      debugState.avgDistance = 0;
+      debugState.message = 'No hand detected';
+      return;
+    }
+    
+    const currentState = getHandStateBasedOnDistance(currentLandmarks, fistThreshold);
+    updateStableState(currentState);
+    
+    if (stableHandState === 'fist') {
+      calculateTransform(currentLandmarks);
+      if (!visible) visible = true;
+      if (!debugState.isTracking) debugState.isTracking = true;
+      debugState.message = 'Tracking (Fist)';
+    } else {
+      if (visible) visible = false;
+      if (debugState.isTracking) debugState.isTracking = false;
+      debugState.message = `Not Tracking State: ${stableHandState}`;
+    }
+  }
+
+  // --- Return Controller API ---
+  // console.log('[Controller] Initialization complete'); // Suppress log
+  
+  return {
+    // Direct access to state variables with getters
+    get position() { return position; },
+    get quaternion() { return quaternion; },
+    get scale() { return scale; },
+    get visible() { return visible; },
+    get stableHandState() { return stableHandState; },
+    get debugState() { return debugState; },
+    update,
+    setFistThreshold: (val) => { if (typeof val === 'number') fistThreshold = val; },
+    setZScaleFactor: (val) => { if (typeof val === 'number') zScaleFactor = val; },
+    setDepthRange: (val) => { if (val && typeof val.min === 'number' && typeof val.max === 'number') depthRange = val; },
+    setStabilityThreshold: (val) => { if (typeof val === 'number' && val > 0) stabilityThreshold = val; },
+  };
+}
+
+================
+File: src/lib/DebugController.svelte
+================
+<script>
+// $lib/DebugController.svelte
+import { useSharedContext } from '$lib/useSharedContext.svelte.js';
+
+const context = useSharedContext();
+
+// Get the controller instance reactively from the context
+// Use $derived to react to changes in context.activeController
+const activeController = $derived(context.activeController);
+
+// Derive the debug state object from the active controller
+// This will be null if no controller is active
+const debugState = $derived(activeController?.debugState); 
+
+</script>
+
+<code class="meadow">
+<div class="w-100 bg-black-60 pa3 br3 mb3">
+{#if debugState}
+  <strong class="db mb2">{debugState.controllerType ?? 'Controller'} Debug</strong>
+  {#each Object.entries(debugState) as [key, value]}
+    {#if key !== 'controllerType'}
+    <div class="f7 truncate">
+      <strong class="o-70 dib w-40">{key}:</strong> 
+      {#if typeof value === 'object' && value !== null}
+      <span class="code">{JSON.stringify(value, (k, v) => typeof v === 'number' ? v.toFixed(2) : v)}</span>
+      {:else if typeof value === 'number'}
+      <span class="code">{value.toFixed(3)}</span>
+      {:else}
+      <span class="code">{value}</span>
+      {/if}
+    </div>
+    {/if}
+  {/each}
+{:else}
+<span class="gold">No active controller detected.</span>
+{/if}
+</div>
+</code>
+
+<!-- <style>
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style> -->
+
+================
+File: src/lib/DebugHandAccessory.svelte
+================
+<script>
+  // $lib/DebugHandAccessory.svelte
+  import { useSharedContext } from '$lib/useSharedContext.svelte.js';
+
+  // Get the shared context
+  const context = useSharedContext();
+
+  // Handler directly sets the index on the context
+  function handleSelectChange(event) {
+    context.selectedAccessoryIndex = event.target.value; // The setter handles parsing/validation
+  }
+</script>
+
+<code class="meadow db">
+  <div class="w-100 bg-black-60 pa3 br3">
+    <label for="accessory-select" class="db mb2">Accessory:</label>
+    <select
+      id="accessory-select"
+      onchange={handleSelectChange}
+      class="pa2 ba b--transparent input-reset w-100"
+      value={context.selectedAccessoryIndex}
+    >
+      {#each context.handAccessories as accessory, i}
+        <option value={i}>{accessory.name}</option>
+      {/each}
+    </select>
+  </div>
+</code>
+
+================
+File: src/lib/DebugMediaPipe.svelte
+================
+<script>
+	// $lib/DebugMediaPipe.svelte
+  import { useSharedContext } from './useSharedContext.svelte.js';
+  import * as mediaService from './mediapipeService.svelte.js';
+
+  // Get the shared context
+  const context = useSharedContext();
+  
+  // Initialize flags
+  let initialized = $state(false);
+  let error = $state(null);
+  
+  // Auto-initialize MediaPipe when component mounts
+  $effect.pre(async () => {
+    // Check if MediaPipe is already initialized from the page component
+    if (context.mediaPipeLoaded) {
+      initialized = true;
+      error = null;
+      return;
+    }
+    
+    try {
+      // Find a video element
+      const videoElement = context.getVideoElement() || document.querySelector('video');
+      
+      if (!videoElement) {
+        throw new Error('No video element found in context or DOM');
+      }
+      
+      // Try to initialize with direct video reference
+      const result = await mediaService.initializeWithVideoElement(videoElement);
+      
+      if (result.success) {
+        initialized = true;
+        error = null;
+      } else {
+        error = result.message;
+      }
+    } catch (err) {
+      console.error('Failed to initialize MediaPipe:', err);
+      error = err.message;
+    }
+  });
+  
+  // Track MediaPipe related properties
+  const mediaPipeInfo = $derived([
+    ['Status', context.detectionStatus || 'Not initialized'],
+    ['Hand Found', context.handFound ? 'Yes' : 'No'],
+    ['Hand Pose', context.handState || 'unknown'],
+    ['Hand Center', context.handCenter ? 
+      `X: ${context.handCenter.x.toFixed(2)}, Y: ${context.handCenter.y.toFixed(2)}, Z: ${context.handCenter.z.toFixed(2)}` : 
+      'N/A'],
+    ['Frame Count', context.renderCount || 0]
+  ]);
+</script>
+
+<code class="meadow">
+  <div class="w-100 bg-black-60 pa3 br3">
+  {#if error}
+    <div class="gold">
+      Error: {error}
+    </div>
+  {:else if !initialized}
+    <div class="green">
+      {context.detectionStatus || 'Initializing hand tracking...'}
+    </div>
+  {:else}
+    <div>
+      <!-- $derived key for reactivity -->
+      {#each mediaPipeInfo as [key, value] (key)}
+      <strong class="o-70">{key}:</strong> <span>{value}</span><br />
+    {/each}
+    </div>
+  {/if}
+  </div>
+</code>
+
+<style>
+/* repomix-ignore-start */
+  
+/* repomix-ignore-end */
+</style>
+
+================
+File: src/lib/DebugSceneInfo.svelte
+================
+<script>
+	// $lib/DebugSceneInfo.svelte
+  import { useSharedContext } from '$lib/useSharedContext.svelte.js';
+
+  // Get the shared context
+  const context = useSharedContext();
+  
+  // Create an array of state properties to display
+  let eachStateProperty = $state([]);
+  
+  // Track individual state properties
+  $effect(() => {
+    eachStateProperty = [
+      ['videoWidth', context.videoWidth],
+      ['videoHeight', context.videoHeight],
+      ['dividerPosition', context.dividerPosition],
+      ['videoReady', context.videoReady],
+      ['aspectRatio', context.aspectRatio],
+      ['isDragging', context.dragging]
+    ];
+  });
+</script>
+
+<code class="meadow">
+  <div class="w-100 bg-black-60 pa3 br3">
+  {#each eachStateProperty as [key, value]}
+    <strong class="o-60">{key}:</strong> {typeof value === 'function' ? '[Function]' : value}
+    <br />
+  {/each}
+  </div>
+</code>
+
+<style>
+  /* repomix-ignore-start */
+    
+  /* repomix-ignore-end */
+  </style>
+
+================
+File: src/lib/Defs.svelte
+================
+<script>
+  // $lib/Defs.svelte
+</script>
+
+<svg class="spirites" style="display: none;">
+	<defs>
+    <path id="icon-menu" stroke="currentcolor" stroke-width="6" d="M0 5h32M0 16h32M0 27h32"/>
+  </defs>
+</svg>
+
+================
+File: src/lib/handGestureUtils.js
+================
+// lib/handGestureUtils.js
+// Utility functions for hand gesture detection
+
+import { log } from './mediapipeService.svelte.js'; // log(`Average fingertip distance: ${avgDistance.toFixed(3)}`);
+
+
+/**
+ * Calculate the Euclidean distance between two 3D points
+ * @param {Object} point1 - First point with x, y, z coordinates
+ * @param {Object} point2 - Second point with x, y, z coordinates
+ * @returns {number} The distance between the two points
+ */
+export function calculateDistance(point1, point2) {
+  return Math.sqrt(
+    Math.pow(point2.x - point1.x, 2) +
+    Math.pow(point2.y - point1.y, 2) +
+    Math.pow(point2.z - point1.z, 2)
+  );
+}
+
+/**
+  * Determine the hand gesture state based on landmarks
+  * @param {Array} landmarks - Array of hand landmarks from MediaPipe
+  * @returns {string} The hand state: 'fist', 'palm', or 'unknown'
+  */
+export function calculateAvgFingerTipDistance(landmarks) {
+  if (!landmarks || landmarks.length < 21) {
+    return 0;
+  }
+  const wrist = landmarks[0];
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const middleTip = landmarks[12];
+  const ringTip = landmarks[16];
+  const pinkyTip = landmarks[20];
+
+  const distances = [
+    calculateDistance(wrist, thumbTip),
+    calculateDistance(wrist, indexTip),
+    calculateDistance(wrist, middleTip),
+    calculateDistance(wrist, ringTip),
+    calculateDistance(wrist, pinkyTip)
+  ];
+
+  const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+  return avgDistance;
+}
+
+
+/**
+ * Determine the hand gesture state based on landmarks
+ * @param {Array} landmarks - Array of hand landmarks from MediaPipe
+ * @returns {string} The hand state: 'fist', 'palm', or 'unknown'
+ */
+export function getHandState(landmarks) {
+  if (!landmarks || landmarks.length < 21) {
+    return 'unknown';
+  }
+  
+  const wrist = landmarks[0];
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const middleTip = landmarks[12];
+  const ringTip = landmarks[16];
+  const pinkyTip = landmarks[20];
+  
+  const distances = [
+    calculateDistance(wrist, thumbTip),
+    calculateDistance(wrist, indexTip),
+    calculateDistance(wrist, middleTip),
+    calculateDistance(wrist, ringTip),
+    calculateDistance(wrist, pinkyTip)
+  ];
+  
+  const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+  
+  // see: `calculateAvgFingerTipDistance()` above.
+  // log(`Average fingertip distance: ${avgDistance.toFixed(3)}`);
+  
+  // These thresholds may need adjustment based on testing
+  if (avgDistance < 0.15) return 'fist';
+  if (avgDistance > 0.25) return 'palm';
+  return 'unknown';
+}
+
+/**
+ * Calculate the center point of a hand from landmarks
+ * @param {Array} landmarks - Array of hand landmarks from MediaPipe
+ * @returns {Object} The hand center point with x, y, z coordinates
+ */
+export function calculateHandCenter(landmarks) {
+  let sumX = 0, sumY = 0, sumZ = 0;
+  landmarks.forEach(lm => {
+    sumX += lm.x;
+    sumY += lm.y;
+    sumZ += lm.z;
+  });
+  const count = landmarks.length;
+  return { 
+    x: sumX / count, 
+    y: sumY / count, 
+    z: sumZ / count 
+  };
+}
+
+/**
+ * Check if fingers are curled (useful for detailed gesture detection)
+ * @param {Array} landmarks - Array of hand landmarks from MediaPipe
+ * @returns {Object} Object with boolean values for each finger curl state
+ */
+export function checkFingerCurl(landmarks) {
+  // Return early if we don't have enough landmarks
+  if (!landmarks || landmarks.length < 21) {
+    return {
+      thumb: false,
+      index: false,
+      middle: false,
+      ring: false,
+      pinky: false
+    };
+  }
+  
+  // Get fingertips and joints
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const middleTip = landmarks[12];
+  const ringTip = landmarks[16];
+  const pinkyTip = landmarks[20];
+  
+  // Get base knuckles
+  const thumbBase = landmarks[2];
+  const indexBase = landmarks[5];
+  const middleBase = landmarks[9];
+  const ringBase = landmarks[13];
+  const pinkyBase = landmarks[17];
+  
+  // Check curl by comparing distance from tip to base vs. expected distance when extended
+  const thumbCurl = calculateDistance(thumbTip, thumbBase) < 0.08;
+  const indexCurl = calculateDistance(indexTip, indexBase) < 0.12;
+  const middleCurl = calculateDistance(middleTip, middleBase) < 0.12;
+  const ringCurl = calculateDistance(ringTip, ringBase) < 0.12;
+  const pinkyCurl = calculateDistance(pinkyTip, pinkyBase) < 0.12;
+  
+  return {
+    thumb: thumbCurl,
+    index: indexCurl,
+    middle: middleCurl,
+    ring: ringCurl,
+    pinky: pinkyCurl
+  };
+}
+
+/**
+ * Get a more detailed description of the hand pose
+ * @param {Array} landmarks - Array of hand landmarks from MediaPipe
+ * @returns {string} Detailed hand pose description
+ */
+export function getDetailedHandPose(landmarks) {
+  const fingerCurl = checkFingerCurl(landmarks);
+  const allFingersCurled = Object.values(fingerCurl).every(curl => curl);
+  const allFingersExtended = Object.values(fingerCurl).every(curl => !curl);
+  
+  if (allFingersCurled) return 'fist';
+  if (allFingersExtended) return 'open_palm';
+  
+  // Pointing gesture (index extended, others curled)
+  if (!fingerCurl.index && 
+      fingerCurl.middle && 
+      fingerCurl.ring && 
+      fingerCurl.pinky) {
+    return 'pointing';
+  }
+  
+  // Peace sign (index and middle extended, others curled)
+  if (!fingerCurl.index && 
+      !fingerCurl.middle && 
+      fingerCurl.ring && 
+      fingerCurl.pinky) {
+    return 'peace';
+  }
+  
+  // Default to basic hand state
+  return getHandState(landmarks);
+}
+
+================
+File: src/lib/Loader.svelte
+================
+<script>
+
+</script>
+
+<!-- FIX: Fixed loading overlay condition to be clearer -->
+<div class="absolute top-0 left-0 w-100 vh-100 flex items-center justify-center bg-black z-max">
+  <div class="loader"></div>
+</div>
+
+<style>
+.loader {
+  width: 50px;
+  height: 50px;
+  border: 6px solid ;
+  border-top: 6px solid magenta;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg) }
+  100% { transform: rotate(360deg) }
+}
+</style>
+
+================
+File: src/lib/MediaPipeDebug.svelte
+================
+<script>
+  // $lib/DebugMediaPipe.svelte
+  import { useSharedContext } from '$lib/useSharedContext.svelte.js';
+
+  // Get the shared context
+  const context = useSharedContext();
+  
+  // Computed values for display
+  const handStateInfo = $derived(
+    context.handFound 
+      ? `Found (${context.handState})` 
+      : 'Not detected'
+  );
+  
+  const detectionStatusInfo = $derived(
+    context.handDetectionReady 
+      ? context.detectionStatus 
+      : 'Initializing...'
+  );
+  
+  const handLandmarksInfo = $derived(
+    context.handLandmarks && context.handLandmarks.length > 0
+      ? `${context.handLandmarks.length} hands, ${context.handLandmarks[0]?.length || 0} landmarks`
+      : 'No landmarks'
+  );
+</script>
+
+<div class="debug-section">
+  <div class="debug-item">
+    <div class="label">Status:</div>
+    <div class="value">{detectionStatusInfo}</div>
+  </div>
+  
+  <div class="debug-item">
+    <div class="label">Hand:</div>
+    <div class="value" class:active={context.handFound}>{handStateInfo}</div>
+  </div>
+  
+  <div class="debug-item">
+    <div class="label">Landmarks:</div>
+    <div class="value">{handLandmarksInfo}</div>
+  </div>
+  
+  <div class="debug-item">
+    <div class="label">Make a fist to show the selected accessory!</div>
+  </div>
+</div>
+
+<style>
+  .debug-section {
+    margin-bottom: 1.5rem;
+  }
+  
+  .debug-item {
+    margin-bottom: 0.5rem;
+  }
+  
+  .label {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 0.25rem;
+  }
+  
+  .value {
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    word-break: break-word;
+  }
+  
+  .active {
+    background-color: rgba(0, 255, 0, 0.3);
+  }
+</style>
+
+================
+File: src/lib/mediapipeService.svelte.js
+================
+// $lib/mediapipeService.svelte.js
+// Consolidated MediaPipe service with direct video element handling
+import { useSharedContext } from './useSharedContext.svelte.js';
+import { 
+  getDetailedHandPose,
+  calculateHandCenter,
+  calculateAvgFingerTipDistance
+} from './handGestureUtils.js';
+import {
+  drawHandLandmarks,
+  initSmoothingStores,
+  updateSmoothedValues
+} from './wireframeHandDrawing.js';
+
+// MediaPipe configuration
+export const MEDIAPIPE_CONFIG = {
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.3,
+  minTrackingConfidence: 0.3,
+  selfieMode: true
+};
+
+// Logger utility with timestamps
+export function log(...args) {
+  if (process.env.NODE_ENV !== 'production') 
+    console.log(`[MediaPipe ${new Date().toISOString().substring(11, 19)}]`, ...args);
+}
+
+// Load all MediaPipe dependencies
+export async function initializeMediaPipe() {
+  try {
+    log('Loading MediaPipe modules...');
+    
+    const [handsModule, drawingUtils, cameraUtils] = await Promise.all([
+      import('@mediapipe/hands'),
+      import('@mediapipe/drawing_utils'),
+      import('@mediapipe/camera_utils')
+    ]);
+    
+    log('MediaPipe modules loaded successfully');
+    
+    return { 
+      Hands: handsModule.Hands, 
+      HAND_CONNECTIONS: handsModule.HAND_CONNECTIONS,
+      drawConnectors: drawingUtils.drawConnectors,
+      drawLandmarks: drawingUtils.drawLandmarks,
+      Camera: cameraUtils.Camera,
+      error: null
+    };
+  } catch (error) {
+    console.error('Error initializing MediaPipe:', error);
+    return { error: error.message };
+  }
+}
+
+// Create and configure hands model
+export function createHandsModel(Hands) {
+  log('Creating hand model');
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+  
+  hands.setOptions(MEDIAPIPE_CONFIG);
+  return hands;
+}
+
+// Initialize camera with MediaPipe
+export async function initCamera(Camera, videoElement, onFrame) {
+  if (!videoElement) {
+    throw new Error('Video element not available');
+  }
+  
+  try {
+    // Set up video stream if needed
+    if (!videoElement.srcObject) {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user', 
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30 }
+        } 
+      });
+      
+      videoElement.srcObject = stream;
+    }
+    
+    // Create and start camera instance
+    const camera = new Camera(videoElement, { onFrame });
+    await camera.start();
+    log('MediaPipe camera started');
+    return camera;
+  } catch (error) {
+    log('Camera error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Initialize MediaPipe with direct video element reference
+ */
+export async function initializeWithVideoElement(videoElement, canvas = null, context) {
+  // Ensure context is passed or retrieved
+  if (!context) {
+    context = useSharedContext(); 
+  }
+  
+  if (!videoElement) {
+    return { success: false, message: 'Video element not provided' };
+  }
+  
+  if (context.mediaPipeLoaded) {
+    return { success: true, message: 'MediaPipe already initialized' };
+  }
+  
+  try {
+    context.detectionStatus = 'Loading MediaPipe modules...';
+    
+    const mediaPipeModules = await initializeMediaPipe();
+    
+    if (mediaPipeModules.error) {
+      context.detectionStatus = `MediaPipe initialization failed: ${mediaPipeModules.error}`;
+      return { success: false, message: mediaPipeModules.error };
+    }
+    
+    const { Hands, HAND_CONNECTIONS, drawConnectors, drawLandmarks, Camera } = mediaPipeModules;
+    
+    // Store drawing utilities for access
+    window.drawConnectors = drawConnectors;
+    window.drawLandmarks = drawLandmarks;
+    window.HAND_CONNECTIONS = HAND_CONNECTIONS;
+    
+    // Create the hands model
+    const hands = createHandsModel(Hands);
+    
+    // Set up canvas if needed
+    let ctx;
+    if (canvas) {
+      ctx = canvas.getContext('2d');
+      context.canvas = canvas; // Update context even if canvas provided
+      context.canvasContext = ctx;
+    } else if (context.canvas && context.canvasContext) {
+      canvas = context.canvas;
+      ctx = context.canvasContext;
+    } else {
+       console.warn('[MediaPipe Service] Canvas not provided and not found in context. Drawing disabled.');
+    }
+    
+    // Append canvas to document if provided and not already added
+    if (canvas && !canvas.parentNode && document?.body) { 
+      // document.body.appendChild(canvas); 
+      // log('Canvas appended to document body');
+    } else if (canvas && canvas.parentNode) {
+      // log('Canvas already in document.');
+    }
+    
+    // Initialize smoothing stores
+    const { smoothedHandLandmarksForDisplay, smoothedHandCenterForDisplay } = initSmoothingStores();
+    
+    // Configure hand detection callback
+    hands.onResults((results) => {
+        
+      // --- MODIFIED LOG --- 
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        console.log(`[MediaPipe Service onResults] Found ${results.multiHandLandmarks.length} hand(s).`);
+      } else {
+        console.log('[MediaPipe Service onResults] No hands found.'); // <-- UNCOMMENTED THIS LINE
+      }
+      // --- END LOG --- 
+        
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0]; 
+
+        context.handLandmarks = results.multiHandLandmarks;
+        context.handState = getDetailedHandPose(landmarks);
+        context.handCenter = calculateHandCenter(landmarks);
+        context.handFound = true;
+        context.detectionStatus = `Hand detected: ${context.handState}`;
+        
+        const { centerStore } = updateSmoothedValues(results.multiHandLandmarks, context.handCenter);
+        centerStore.subscribe(value => { context.handCenterSmoothed = value; });
+        
+        if (ctx && canvas) {
+          drawHandLandmarks(
+            ctx, 
+            canvas, 
+            results.multiHandLandmarks, 
+            HAND_CONNECTIONS, 
+            context.dividerPosition,
+            { drawConnectors, drawLandmarks }
+          );
+        }
+      } else {
+        if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        context.handLandmarks = [];
+        context.handState = 'unknown';
+        context.handCenter = null;
+        context.handCenterSmoothed = null;
+        context.handFound = false;
+        context.detectionStatus = 'No hand detected';
+        updateSmoothedValues([], null); 
+      }
+
+      if (context.activeController) {
+        context.activeController.update(results.multiHandLandmarks); // Always call update
+      }
+      
+      context.renderCount = (context.renderCount || 0) + 1;
+    });
+    
+    try {
+      context.detectionStatus = 'Starting camera with hand detection...';
+      await initCamera(Camera, videoElement, async () => {
+        try {
+          await hands.send({image: videoElement});
+        } catch (error) {
+          log('Error processing frame:', error);
+        }
+      });
+      
+      context.mediaPipeLoaded = true;
+      context.handDetectionReady = true;
+      context.detectionStatus = 'MediaPipe ready and running';
+      
+      return { success: true, message: 'MediaPipe initialized successfully' };
+    } catch (cameraError) {
+      log('Camera initialization with MediaPipe failed, attempting fallback processing', cameraError);
+      context.detectionStatus = 'Using fallback processing...';
+      
+      // Fallback manual processing loop
+      let animFrameId = null;
+      function process() {
+        if (!context.mediaPipeLoaded) return; // Stop if cleaned up
+        if (videoElement.readyState >= 2) {
+          hands.send({image: videoElement}).catch(e => log('Manual process error:', e));
+        }
+        animFrameId = requestAnimationFrame(process);
+      };
+      animFrameId = requestAnimationFrame(process);
+      
+      context.mediaPipeLoaded = true;
+      context.handDetectionReady = true;
+      context.detectionStatus = 'MediaPipe running (fallback mode)';
+      
+      return { success: true, message: 'MediaPipe initialized with fallback processing' };
+    }
+  } catch (error) {
+    log('Error in initializeWithVideoElement:', error); // Log top-level errors
+    context.detectionStatus = `Error: ${error.message}`;
+    return { success: false, message: error.message };
+  }
+}
+
+================
+File: src/lib/RightMenu.svelte
+================
+<script>
+  // $lib/RightMenu.svelte
+  import DebugMediaPipe from '$lib/DebugMediaPipe.svelte';
+  import DebugSceneInfo from '$lib/DebugSceneInfo.svelte';
+  import DebugController from '$lib/DebugController.svelte';
+  import DebugHandAccessory from '$lib/DebugHandAccessory.svelte';
+  import { useSharedContext } from '$lib/useSharedContext.svelte.js';
+
+  // Get shared context
+  const context = useSharedContext();
+
+  // User state with $state rune
+  let user = $state({ showMenu: true });
+
+  // Menu toggle function
+  function toggle() {
+    user.showMenu = !user.showMenu;
+  }
+
+  // Menu open function
+  function open() {
+    user.showMenu = true;
+  }
+</script>
+
+<button
+  onkeydown={e => e.key === 'Escape' && toggle()}
+  class="
+    input-reset
+    z-max fixed pointer mb5
+    bottom-0 right-0 fr
+    ba bw2
+    b--dark-gray
+    bg-light-gray
+    black
+    hover-bg-white
+    mr0 ml0 pa2 pt1 pb1 tc
+    bg-transition"
+  onclick={toggle}>
+  <div class="no-select">
+    <svg viewBox="0 0 32 32" class="db h2 w2 mt1 mb1 mr-auto ml-auto ">
+      <use xlink:href="#icon-menu"></use>
+    </svg>
+    <span class="dib dib-ns dn-m dib-l f8 tracked ttu mb2 b ">Menu</span>
+  </div>
+</button>
+
+<div
+  role="presentation"
+  style="cursor: context-menu"
+  class="dn-ns dn-m dn-l fixed bg-black-30 left-0 right-0 btm-0 vh-100 vw-100 h-100 w-100 o-transition"
+  onclick={toggle}
+  class:open={!user.showMenu}
+  onkeydown={e => e.key === 'Escape' && toggle()}
+></div>
+
+
+<div
+  role="menu"
+  tabindex=0
+  onkeydown={e => e.key === 'Escape' && toggle()}
+  class:toggle={user.showMenu}
+  class="nav backface-hidden
+  w-two-thirds w-third-ns w-third-m w-25-l
+  h-100 vh-100 top-0 right-0 fixed z-9999 bl b--black bg-black-70 touch-scrolling caribbean
+  f5 f6-ns f6-m f4-l">
+
+<h1 class="pa2 pa3-l">Slash AR</h1>
+
+<aside class="pa2 pa3-l">
+  <h3>Hand Accessory</h3>
+  <DebugHandAccessory />
+  <h3>Contoller</h3>
+  <DebugController />
+  <h3>Hand Detection</h3>
+  <DebugMediaPipe />
+  <!-- <hr class="o-30 mv4 ba bw1 b--inherit"/> -->
+  <h3>Scene Information</h3>
+  <DebugSceneInfo />
+</aside>
+</div>
+
+
+<style>
+/* repomix-ignore-start */
+
+.nav {
+  will-change: transform;
+  transform: translateX(100%);
+  transition: transform .28s cubic-bezier(.3, 0, .02, 1);
+  -webkit-transition: transform .28s cubic-bezier(.3, 0, .02, 1);
+}
+
+.toggle {
+  transform: translateX(0);
+}
+
+.open {
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* repomix-ignore-end */
+</style>
+
+
+
+<!-- usage: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/menu_role -->
+
+================
+File: src/lib/ThreeScene.svelte
+================
+<script>
+  // lib/ThreeScene.svelte
+  import * as THREE from 'three';
+  import { browser } from '$app/environment'; // Import browser check
+
+  // --- Props ---
+  let {
+    leftPane, // DOM element where canvas will be appended
+    onReady = (payload) => {}, // Callback when scene is ready
+    onDestroy = () => {} // Callback when scene is destroyed - fixed naming
+  } = $props();
+
+  // --- Internal State ---
+  let localScene;
+  let localCamera;
+  let localRenderer;
+  let animationFrameId;
+  let cleanup = () => {}; // Cleanup function
+  
+  // Initialize Three.js when mounted (browser-only)
+  $effect.pre(() => {
+    if (!browser || !leftPane) return;
+    
+    console.log("[ThreeScene] Initializing in $effect.pre");
+    
+    // Create scene
+    localScene = new THREE.Scene();
+    
+    // Add a grid for visibility debugging
+    const gridHelper = new THREE.GridHelper(10, 10, 0xffffff, 0x444444);
+    localScene.add(gridHelper);
+    
+    // Add lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    localScene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 10, 7.5);
+    localScene.add(directionalLight);
+
+    // Create a debug cube that will animate
+    const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const cubeMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x00ff00, // Bright green
+      roughness: 0.7,
+      metalness: 0.3
+    });
+    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+    cube.position.set(-0.81, -1.50, -0.13); // I can see this, so why can't I see the hand?
+    localScene.add(cube);
+    
+    // Create camera
+    localCamera = new THREE.PerspectiveCamera(
+      75, 
+      leftPane.offsetWidth / leftPane.offsetHeight, 
+      0.1, 
+      1000
+    );
+    localCamera.position.set(0, 1.6, 5);
+    localCamera.lookAt(0, 0, 0);
+    
+    // Create renderer with magenta background for debugging
+    localRenderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      alpha: true 
+    });
+    localRenderer.setSize(leftPane.offsetWidth, leftPane.offsetHeight);
+    localRenderer.setClearColor(0xFF00FF, 0.6); // Brighter magenta with higher opacity
+    
+    // Clear leftPane
+    leftPane.innerHTML = '';
+    
+    // Style and append canvas
+    const canvas = localRenderer.domElement;
+    
+    // ** CRITICAL STYLE CHANGES to `leftPane` **
+    Object.assign(canvas.style, {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      width: '100vw',      // Use viewport width
+      height: '100vh',     // Use viewport height
+      pointerEvents: 'none',
+      // Remove background color if you want transparency
+      backgroundColor: 'rgba(255, 0, 255, 0.2)', // Remove when we add an environment
+    });
+    
+    // Append to DOM
+    leftPane.appendChild(canvas);
+    
+    // Notify parent component
+    onReady({
+      scene: localScene,
+      camera: localCamera,
+      renderer: localRenderer
+    });
+    
+    // Animation variables
+    let lastTime = 0;
+    
+    // Animation function
+    function animate(time) {
+      if (!localScene || !localCamera || !localRenderer) return;
+      
+      // Calculate delta time
+      const delta = (time - lastTime) / 1000;
+      lastTime = time;
+      
+      // Animate cube
+      const cube = localScene.getObjectByProperty('type', 'Mesh');
+      if (cube) {
+        cube.rotation.x += 0.5 * delta;
+        cube.rotation.y += 0.7 * delta;
+      }
+      
+      // Render scene
+      localRenderer.render(localScene, localCamera);
+      
+      // Continue animation
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    // Start animation
+    animationFrameId = requestAnimationFrame(animate);
+    
+    // Handle resize
+    function handleResize() {
+      if (!leftPane || !localCamera || !localRenderer) return;
+      
+      // Update camera
+      localCamera.aspect = window.innerWidth / window.innerHeight;
+      localCamera.updateProjectionMatrix();
+      
+      // Update renderer
+      localRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    
+    // Add resize listener
+    window.addEventListener('resize', handleResize);
+    
+    // Assign cleanup function
+    cleanup = () => {
+      console.log("[ThreeScene] Cleaning up");
+      
+      // Stop animation
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      
+      // Remove resize listener
+      window.removeEventListener('resize', handleResize);
+      
+      // Notify parent component - FIXED: use onDestroy instead of destroyCallback
+      onDestroy();
+      
+      // Cleanup scene
+      if (localScene) {
+        localScene.traverse((object) => {
+          if (object.geometry) object.geometry.dispose();
+          
+          if (object.material) {
+            if (Array.isArray(object.material)) {
+              object.material.forEach((material) => material.dispose());
+            } else {
+              object.material.dispose();
+            }
+          }
+        });
+      }
+      
+      // Dispose renderer
+      if (localRenderer) {
+        localRenderer.dispose();
+      }
+      
+      // Clear references
+      localScene = null;
+      localCamera = null;
+      localRenderer = null;
+    };
+  });
+</script>
+
+================
+File: src/lib/useSharedContext.svelte.js
+================
+// $lib/useSharedContext.svelte.js
+import { getContext, setContext } from 'svelte';
+// Import accessory components needed for the list definition
+import WandComponent from '$routes/(app)/camera/Wand.svelte';
+import SwordComponent from '$routes/(app)/camera/Sword.svelte';
+import AxeComponent from '$routes/(app)/camera/Axe.svelte';
+
+// Symbol used as context key to prevent collisions
+const CONTEXT_KEY = Symbol('sharedContext');
+
+// Define accessories list statically (assuming it doesn't change)
+const HAND_ACCESSORIES_LIST = [
+  { name: 'Axe', component: AxeComponent },
+  { name: 'Wand', component: WandComponent },
+  { name: 'Sword', component: SwordComponent }
+];
+
+const DEFAULT_VALUES = {
+  // Layout and video properties
+  layout: {
+    videoWidth: 0,
+    videoHeight: 0,
+    dividerPosition: typeof window !== 'undefined' ? window.innerWidth * 0.5 : 500,
+    videoReady: false,
+    dragging: false,
+    startX: 0,
+    paneDimensions: { leftWidth: 0, rightWidth: 0 },
+    layoutInitialized: false, 
+  },
+
+  // MediaPipe properties
+  hand: {
+    landmarks: [],
+    state: 'unknown',
+    center: null,
+    centerSmoothed: null,
+    found: false,
+    detectionReady: false,
+    status: 'Initializing...',
+    loaded: false
+  },
+
+  // Three.js properties
+  three: {
+    ready: false,
+    renderCount: 0,
+    particleCount: 0,
+    lastRenderTime: 0
+  },
+
+  // Accessory properties
+  accessory: {
+      selectedIndex: 0 
+  }
+};
+
+/**
+ * Create and initialize shared context to be called once
+ */
+export function createSharedContext() {
+  // Create reactive state object for primitive values
+  const state = $state({
+    // Layout and video properties
+    videoWidth: DEFAULT_VALUES.layout.videoWidth,
+    videoHeight: DEFAULT_VALUES.layout.videoHeight,
+    dividerPosition: DEFAULT_VALUES.layout.dividerPosition,
+    videoReady: DEFAULT_VALUES.layout.videoReady,
+    dragging: DEFAULT_VALUES.layout.dragging,
+    startX: DEFAULT_VALUES.layout.startX,
+    paneDimensions: DEFAULT_VALUES.layout.paneDimensions,
+    layoutInitialized: DEFAULT_VALUES.layout.layoutInitialized,
+
+    // MediaPipe properties
+    handLandmarks: DEFAULT_VALUES.hand.landmarks,
+    handState: DEFAULT_VALUES.hand.state,
+    handCenter: DEFAULT_VALUES.hand.center,
+    handCenterSmoothed: DEFAULT_VALUES.hand.centerSmoothed,
+    avgFingerTipDistance: DEFAULT_VALUES.hand.avgFingerTipDistance,
+    handFound: DEFAULT_VALUES.hand.found,
+    handDetectionReady: DEFAULT_VALUES.hand.detectionReady,
+    detectionStatus: DEFAULT_VALUES.hand.status,
+    mediaPipeLoaded: DEFAULT_VALUES.hand.loaded,
+
+    // Three.js properties
+    threeJsReady: DEFAULT_VALUES.three.ready,
+    renderCount: DEFAULT_VALUES.three.renderCount,
+    particleCount: DEFAULT_VALUES.three.particleCount,
+    lastRenderTime: DEFAULT_VALUES.three.lastRenderTime,
+
+    // Accessory reactive state
+    selectedAccessoryIndex: DEFAULT_VALUES.accessory.selectedIndex,
+
+    ready: true // General readiness flag
+  });
+
+  // Derived state
+  const _aspectRatio = $derived(
+    state.videoWidth && state.videoHeight
+      ? state.videoWidth / state.videoHeight
+      : 16/9
+  );
+
+  // --- Use $state for element references that need reactivity --- 
+  let _videoElement = $state(null);
+  let _container = $state(null);
+  let _leftPane = $state(null);
+  let _rightPane = $state(null);
+  let _resizer = $state(null);
+  let _videoOverlayGray = $state(null);
+  let _canvas = $state(null);
+  // --- End reactive element references ---
+
+  // Non-reactive references (can remain as let)
+  let _canvasContext = null;
+  let _threeJsScene = null;
+  let _threeJsRenderer = null;
+  let _threeJsCamera = null;
+  let _activeController = null; // Controller instance itself doesn't need to be reactive
+  let _resizeRAF = null;
+  let _lastContainerWidth = 0;
+  let _resizeCleanup = () => {};
+
+  // Create the context API with property getters/setters
+  const context = {
+    // Layout and video properties (Access primitive state)
+    get videoWidth() { return state.videoWidth; },
+    set videoWidth(v) { state.videoWidth = v; },
+    get videoHeight() { return state.videoHeight; },
+    set videoHeight(v) { state.videoHeight = v; },
+    get dividerPosition() { return state.dividerPosition; },
+    get videoReady() { return state.videoReady; },
+    set videoReady(v) { state.videoReady = v; },
+    get dragging() { return state.dragging; },
+    get layoutInitialized() { return state.layoutInitialized; }, 
+    set layoutInitialized(v) { state.layoutInitialized = v; }, 
+
+    // MediaPipe properties (Access primitive state)
+    get handLandmarks() { return state.handLandmarks; },
+    set handLandmarks(v) { state.handLandmarks = v; },
+    get handState() { return state.handState; },
+    set handState(v) { state.handState = v; },
+    get handCenter() { return state.handCenter; },
+    set handCenter(v) { state.handCenter = v; },
+    get handCenterSmoothed() { return state.handCenterSmoothed; },
+    set handCenterSmoothed(v) { state.handCenterSmoothed = v; },
+    get avgFingerTipDistance() { return state.avgFingerTipDistance; },
+    set avgFingerTipDistance(v) { state.avgFingerTipDistance = v; },
+    get handFound() { return state.handFound; },
+    set handFound(v) { state.handFound = v; },
+    get handDetectionReady() { return state.handDetectionReady; },
+    set handDetectionReady(v) { state.handDetectionReady = v; },
+    get detectionStatus() { return state.detectionStatus; },
+    set detectionStatus(v) { state.detectionStatus = v; },
+    get mediaPipeLoaded() { return state.mediaPipeLoaded; },
+    set mediaPipeLoaded(v) { state.mediaPipeLoaded = v; },
+
+    // --- Active Controller (Remains non-reactive reference) ---
+    get activeController() { return _activeController; },
+    set activeController(controllerInstance) {
+        if (_activeController !== controllerInstance) {
+            _activeController = controllerInstance;
+        }
+    },
+    // --- End Active Controller ---
+
+    // Three.js properties (Access primitive state)
+    get threeJsReady() { return state.threeJsReady; },
+    set threeJsReady(v) { state.threeJsReady = v; },
+    get renderCount() { return state.renderCount; },
+    set renderCount(v) { state.renderCount = v; },
+    get particleCount() { return state.particleCount; },
+    set particleCount(v) { state.particleCount = v; },
+    get lastRenderTime() { return state.lastRenderTime; },
+    set lastRenderTime(v) { state.lastRenderTime = v; },
+
+    // Accessory Getters/Setters (Access primitive state)
+    get handAccessories() { return HAND_ACCESSORIES_LIST; },
+    get selectedAccessoryIndex() { return state.selectedAccessoryIndex; },
+    set selectedAccessoryIndex(index) {
+        const idx = parseInt(index, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < HAND_ACCESSORIES_LIST.length) {
+            if (state.selectedAccessoryIndex !== idx) {
+                state.selectedAccessoryIndex = idx;
+            }
+        } else {
+            console.warn(`[Context] Invalid accessory index set attempt: ${index}`);
+        }
+    },
+    get selectedAccessory() {
+        return HAND_ACCESSORIES_LIST[state.selectedAccessoryIndex] || null;
+    },
+
+    // --- Resource references: Use reactive getters/setters for DOM elements --- 
+    get canvas() { return _canvas; }, // Return reactive state
+    // No setter needed externally? Layout uses setElements
+    get leftPane() { return _leftPane; }, // Return reactive state
+    // No setter needed externally?
+    get container() { return _container; }, // Return reactive state
+     // No setter needed externally?
+    get rightPane() { return _rightPane; }, // Return reactive state
+     // No setter needed externally?
+    get resizer() { return _resizer; }, // Return reactive state
+     // No setter needed externally?
+    get videoOverlayGray() { return _videoOverlayGray; }, // Return reactive state
+     // No setter needed externally?
+    getVideoElement() { return _videoElement; }, // Return reactive state via method
+    // --- End reactive element getters/setters ---
+
+    // Non-reactive getters/setters (remain as before)
+    get canvasContext() { return _canvasContext; },
+    set canvasContext(v) { _canvasContext = v; },
+    get threeJsScene() { return _threeJsScene; },
+    set threeJsScene(v) { _threeJsScene = v; },
+    get threeJsRenderer() { return _threeJsRenderer; },
+    set threeJsRenderer(v) { _threeJsRenderer = v; },
+    get threeJsCamera() { return _threeJsCamera; },
+    set threeJsCamera(v) { _threeJsCamera = v; },
+
+    // Derived values
+    get aspectRatio() { return _aspectRatio; },
+
+    // Utility methods
+    getSafe(key, defaultValue = null) {
+      return key in state ? state[key] : defaultValue;
+    },
+    isReady() {
+      return state.ready;
+    },
+    // getVideoElement handled above
+
+    // Set DOM references (Now assigns to reactive state variables)
+    setElements(elements) {
+      const { container, leftPane, rightPane, resizer, videoElement, videoOverlayGray, handCanvas } = elements;
+
+      // Assign to the reactive $state variables
+      if (container) _container = container;
+      if (leftPane) _leftPane = leftPane;
+      if (rightPane) _rightPane = rightPane;
+      if (resizer) _resizer = resizer;
+      if (videoElement) _videoElement = videoElement;
+      if (videoOverlayGray) _videoOverlayGray = videoOverlayGray;
+      if (handCanvas) _canvas = handCanvas;
+
+      // Keep the logic for initial container width
+      if (_container && !_lastContainerWidth) {
+        _lastContainerWidth = _container.offsetWidth;
+      }
+    },
+
+    // Layout management (Needs to access reactive refs now)
+    updateLayout(newDividerPos) {
+      if (!_container) {
+          return state.dividerPosition;
+      }
+
+      const containerWidth = _container.offsetWidth;
+      const boundedPos = Math.max(50, Math.min(containerWidth - 50, newDividerPos));
+
+      // Update DOM elements directly using reactive refs
+      if (_leftPane) _leftPane.style.width = `${boundedPos}px`;
+      if (_rightPane) _rightPane.style.width = `${containerWidth - boundedPos}px`;
+      if (_resizer) _resizer.style.left = `${boundedPos}px`;
+
+      if (_videoOverlayGray) {
+        _videoOverlayGray.style.clipPath = `inset(0 0 0 ${boundedPos}px)`;
+      }
+
+      if (state.dividerPosition !== boundedPos) {
+        state.dividerPosition = boundedPos;
+      }
+
+       if (_leftPane && _rightPane) {
+           state.paneDimensions = {
+               leftWidth: _leftPane.offsetWidth,
+               rightWidth: _rightPane.offsetWidth
+           };
+       }
+
+      return boundedPos;
+    },
+
+    // Window resize handler (Needs to access reactive container ref)
+    handleResize() {
+      if (typeof window === 'undefined') return;
+      if (_resizeRAF) cancelAnimationFrame(_resizeRAF);
+
+      _resizeRAF = requestAnimationFrame(() => {
+        if (!_container) return;
+
+        const containerWidth = _container.offsetWidth;
+        if (containerWidth === _lastContainerWidth) return;
+
+        const ratio = state.dividerPosition / _lastContainerWidth;
+        const newPosition = Math.round(containerWidth * ratio);
+
+        _lastContainerWidth = containerWidth;
+
+        context.updateLayout(newPosition);
+      });
+    },
+
+    // Pointer event handlers (Needs to access reactive container ref)
+    pointermove(e) {
+      if (!state.dragging || !_container) return;
+      const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+      const containerRect = _container.getBoundingClientRect();
+      const newPos = currentX - containerRect.left;
+      context.updateLayout(newPos);
+    },
+
+    pointerend() {
+      if (!state.dragging || !_container) return;
+      state.dragging = false;
+      if (document) document.body.style.cursor = 'default';
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mousemove', context.pointermove);
+        window.removeEventListener('mouseup', context.pointerend);
+        window.removeEventListener('touchmove', context.pointermove);
+        window.removeEventListener('touchend', context.pointerend);
+      }
+    },
+
+    pointerstart(e) {
+      if(!_container) return; // Ensure container exists before starting drag
+      state.startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+      state.dragging = true;
+
+      if (_leftPane && _rightPane) {
+        state.paneDimensions = {
+          leftWidth: _leftPane.offsetWidth,
+          rightWidth: _rightPane.offsetWidth
+        };
+      }
+
+      if (document) document.body.style.cursor = 'col-resize';
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('mousemove', context.pointermove);
+        window.addEventListener('mouseup', context.pointerend);
+        window.addEventListener('touchmove', context.pointermove, { passive: false });
+        window.addEventListener('touchend', context.pointerend);
+      }
+
+      if (e?.preventDefault) e.preventDefault();
+    },
+
+    // Camera initialization (Needs to access reactive videoElement ref)
+    async initCamera() {
+      // Check reactive _videoElement directly
+      if (typeof window === 'undefined' || !_videoElement) {
+          console.warn('[Context initCamera] No video element ref yet.');
+          return; // Wait for element
+      }
+      if (state.videoReady) return; // Avoid re-init
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        // Assign stream only if element exists (redundant check, but safe)
+        if (_videoElement) {
+             _videoElement.srcObject = stream;
+             await new Promise((resolve, reject) => {
+                 _videoElement.onloadedmetadata = () => {
+                    state.videoReady = true;
+                    state.videoWidth = _videoElement.videoWidth;
+                    state.videoHeight = _videoElement.videoHeight;
+                    resolve();
+                 };
+                 _videoElement.onerror = reject;
+             });
+         } else {
+            throw new Error("Video element reference became null during initCamera.");
+         }
+      } catch (error) {
+        console.error('[Context] Camera access error:', error.name, error.message);
+        state.videoReady = false;
+        throw error; // Re-throw error
+      }
+    },
+
+    // Cleanup function
+    cleanup() {
+      _resizeCleanup();
+      _resizeCleanup = () => {};
+      if (_resizeRAF) { cancelAnimationFrame(_resizeRAF); _resizeRAF = null; }
+      if (state.dragging) { context.pointerend(); }
+      _activeController = null;
+
+      // Reset reactive element refs
+      _videoElement = null;
+      _container = null;
+      _leftPane = null;
+      _rightPane = null;
+      _resizer = null;
+      _videoOverlayGray = null;
+      _canvas = null;
+
+      console.log("[Context] Cleanup executed.");
+    },
+
+    // Setup resize listener
+    setupResizeListener() {
+      if (typeof window !== 'undefined') {
+        _resizeCleanup();
+        const handler = context.handleResize;
+        window.addEventListener('resize', handler, { passive: true });
+        _resizeCleanup = () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('resize', handler);
+            }
+             if (_resizeRAF) { cancelAnimationFrame(_resizeRAF); _resizeRAF = null;}
+        };
+        return _resizeCleanup;
+      }
+      return () => {};
+    }
+  };
+
+  // Set the context
+  setContext(CONTEXT_KEY, context);
+  return context;
+}
+
+/**
+ * Create a dummy context for safety
+ */
+function createDummyContext() {
+  // Reflect the structure, including reactive elements being null initially
+  return {
+    ready: false, videoWidth: 0, videoHeight: 0, dividerPosition: 500, videoReady: false, dragging: false, layoutInitialized: false,
+    handLandmarks: [], handState: 'unknown', handCenter: null, handCenterSmoothed: null, handFound: false,
+    handDetectionReady: false, detectionStatus: 'Initializing...', mediaPipeLoaded: false,
+    threeJsReady: false, renderCount: 0, particleCount: 0, lastRenderTime: 0, aspectRatio: 16/9,
+    handAccessories: [], selectedAccessoryIndex: -1, selectedAccessory: null,
+    activeController: null,
+    // Provide null for elements that are now reactive in the real context
+    canvas: null, leftPane: null, container: null, rightPane: null, resizer: null, videoOverlayGray: null, 
+    // Non-reactive elements
+    canvasContext: null, threeJsScene: null, threeJsRenderer: null, threeJsCamera: null,
+    getSafe: (key, defaultValue = null) => defaultValue, isReady: () => false, updateLayout: () => {},
+    handleResize: () => {}, pointermove: () => {}, pointerend: () => {}, pointerstart: () => {},
+    initCamera: () => Promise.resolve(), cleanup: () => {}, setupResizeListener: () => () => {},
+    setElements: () => {}, 
+    getVideoElement: () => null // Method still returns null in dummy
+  };
+}
+
+/**
+ * Retrieves shared context, called during component init
+ */
+export function useSharedContext() {
+  try {
+    const ctx = getContext(CONTEXT_KEY);
+    if (!ctx) {
+        console.warn("useSharedContext called before createSharedContext. Using dummy context.");
+        return createDummyContext();
+    }
+    return ctx;
+  } catch (e) {
+    console.error('useSharedContext error (likely called outside component init):', e);
+    return createDummyContext();
+  }
+}
+
+================
+File: src/lib/wireframeHandDrawing.js
+================
+// $lib/wireframeHandDrawing.js
+// Utilities for drawing hand wireframes and landmarks on canvas
+
+import { tweened } from 'svelte/motion';
+import { circOut } from 'svelte/easing';
+
+// Configuration constants
+export const DRAWING_CONFIG = {
+  wireframe: {
+    color: '#555',
+    lineWidth: 1
+  },
+  landmarks: {
+    color: '#003330',
+    lineWidth: 1,
+    radius: 1
+  }
+};
+
+// Motion smoothing configuration
+export const SMOOTHING_CONFIG = {
+  landmarks: {
+    duration: 200,
+    easing: circOut
+  },
+  handCenter: {
+    duration: 180,
+    easing: circOut
+  }
+};
+
+// Tweened stores for smoothing hand motion
+let smoothedHandLandmarksForDisplay;
+let smoothedHandCenterForDisplay;
+
+// Initialize tweened stores
+export function initSmoothingStores() {
+  smoothedHandLandmarksForDisplay = tweened([], SMOOTHING_CONFIG.landmarks);
+  smoothedHandCenterForDisplay = tweened(null, SMOOTHING_CONFIG.handCenter);
+  return { smoothedHandLandmarksForDisplay, smoothedHandCenterForDisplay };
+}
+
+// Update smoothed values with new data
+export function updateSmoothedValues(landmarks, handCenter) {
+  if (smoothedHandLandmarksForDisplay && landmarks) {
+    smoothedHandLandmarksForDisplay.set(landmarks);
+  }
+  
+  if (smoothedHandCenterForDisplay && handCenter) {
+    smoothedHandCenterForDisplay.set(handCenter);
+  }
+  
+  return { 
+    landmarksStore: smoothedHandLandmarksForDisplay, 
+    centerStore: smoothedHandCenterForDisplay 
+  };
+}
+
+/**
+ * Draw hand landmarks without canvas clipping (using CSS for clipping)
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+ * @param {HTMLCanvasElement} canvas - Canvas element
+ * @param {Array} landmarks - Array of hand landmarks from MediaPipe
+ * @param {Array} connections - Hand connections from MediaPipe
+ * @param {number} dividerPos - Position of the screen divider (now only used for info)
+ * @param {Object} drawingUtils - Drawing utilities from MediaPipe (drawConnectors, drawLandmarks)
+ * @returns {Object} Drawing information
+ */
+export function drawHandLandmarks(ctx, canvas, landmarks, connections, dividerPos, drawingUtils) {
+  // Return early if missing required parameters
+  if (!ctx || !canvas || !landmarks.length || !drawingUtils) {
+    return null;
+  }
+  
+  const { drawConnectors, drawLandmarks } = drawingUtils;
+  
+  // Clear the canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw hand landmarks - no canvas clipping needed (CSS handles that)
+  for (const landmark of landmarks) {
+    try {
+      // Draw connections (wireframe)
+      if (drawConnectors && connections) {
+        drawConnectors(ctx, landmark, connections, {
+          color: DRAWING_CONFIG.wireframe.color,
+          lineWidth: DRAWING_CONFIG.wireframe.lineWidth
+        });
+      }
+      
+      // Draw landmark points
+      if (drawLandmarks) {
+        drawLandmarks(ctx, landmark, {
+          color: DRAWING_CONFIG.landmarks.color,
+          lineWidth: DRAWING_CONFIG.landmarks.lineWidth,
+          radius: DRAWING_CONFIG.landmarks.radius
+        });
+      }
+    } catch (error) {
+      console.error('Error drawing landmarks:', error);
+    }
+  }
+  
+  return {
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    dividerPos
+  };
+}
+
+// DEBUGGING: https://claude.ai/chat/f9d9b446-0229-41b7-a832-8ebf1b61a74b
+
+================
+File: src/routes/(app)/axe/+page.svelte
+================
+<script>
+  // src/routes/(app)/axe/+page.svelte
+  
+  /*
+  let { data } = $props() // {@html JSON.stringify(data?.data, null, 2) } */
+  </script>
+  
+  <!-- routes/(app)/+layout.svelte is COMMON TO ALL ROUTES -->
+  <div class="absolute z-max top-0 left-0 w-4 h-4 bg-black gold" style="width: auto;">
+    THIS IS UNIQUE TO: routes/(app)/axe
+  </div>
+
+================
+File: src/routes/(app)/axe/Axe.svelte
+================
+<script>
+  // src/routes/Axe.svelte
+  import * as THREE from 'three';
+  
+  // Define props with defaults
+  let { 
+    scene,
+    visible = false,
+    position = null,
+    quaternion = null,
+    scale = 1
+  } = $props();
+  
+  // Axe mesh reference
+  let axe;
+  
+  // Create and manage the axe mesh
+  $effect(() => {
+    if (!scene) return;
+    
+    console.log("[Axe] Creating axe mesh");
+    
+    // Axe handle (cylinder)
+    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.07, 3.5, 12);
+    handleGeometry.translate(0, 1.5, 0); // Move pivot point to bottom of cylinder
+    
+    const handleMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8B4513, // Brown color
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    
+    // Create the axe mesh with handle
+    axe = new THREE.Mesh(handleGeometry, handleMaterial);
+    
+    // Create a simple axe blade using a box with custom scaling
+    const bladeGeometry = new THREE.BoxGeometry(1.2, 0.7, 0.1);
+    const bladeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xCCCCCC, // Silver color
+      roughness: 0.3,
+      metalness: 0.9
+    });
+    
+    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    blade.position.set(0, 3.0, 0); // Position at the top of the handle
+    axe.add(blade);
+    
+    // Set initial visibility
+    axe.visible = visible;
+    
+    // Add to scene
+    scene.add(axe);
+    console.log("[Axe] Added to scene");
+    
+    // Cleanup function
+    return () => {
+      if (axe) {
+        console.log("[Axe] Removing from scene");
+        scene.remove(axe);
+        
+        // Dispose geometries and materials
+        handleGeometry.dispose();
+        handleMaterial.dispose();
+        bladeGeometry.dispose();
+        bladeMaterial.dispose();
+        
+        axe = null;
+      }
+    };
+  });
+  
+  // Reactively update axe properties
+  $effect(() => {
+    if (!axe) return;
+    
+    // Update visibility
+    axe.visible = visible;
+    
+    // Update position if provided
+    if (position) {
+      axe.position.set(
+        position.x || 0, 
+        position.y || 0, 
+        position.z || 0
+      );
+    }
+    
+    // Update rotation if quaternion provided
+    if (quaternion) {
+      axe.quaternion.set(
+        quaternion.x || 0, 
+        quaternion.y || 0, 
+        quaternion.z || 0, 
+        quaternion.w !== undefined ? quaternion.w : 1
+      );
+    }
+    
+    // Update scale (uniform scaling)
+    const scaleValue = typeof scale === 'number' ? scale : 1;
+    axe.scale.set(scaleValue, scaleValue, scaleValue);
+  });
+</script>
+
+================
+File: src/routes/(app)/axe/data.json
+================
+{
+  "title": "Axe Throwing",
+  "description": "This is `routes/axe/data.json` file",
+  "gameType": "throwing",
+  "handTracking": {
+    "gestureMap": {
+      "fist": "hold",
+      "openPalm": "throw"
+    }
+  },
+  "scene": {
+    "background": "#1a2b3c",
+    "cameraPosition": [0, 1.6, 5],
+    "lighting": {
+      "ambient": 0.4,
+      "directional": true
+    }
+  },
+  "weapon": {
+    "type": "axe",
+    "scale": 1.2,
+    "position": [0, 0, 0],
+    "autoRotate": true
+  },
+  "targets": [
+    {"position": [0, 0, -8], "points": 10, "size": 1.5}
+  ],
+  "gameRules": {
+    "timeLimit": 60,
+    "targetPoints": 10,
+    "winScore": 100
+  }
+}
+
+================
+File: src/routes/(app)/camera/+page.svelte
+================
+<script>
+  // src/routes/(app)/camera/+page.svelte
+  import { browser } from '$app/environment';
+  import { useSharedContext } from '$lib/useSharedContext.svelte.js';
+  // import * as mediaService from '$lib/mediapipeService.svelte.js'; // No longer initialized here
+  import { createOneHandController } from '$lib/controllerOneHand.svelte.js';
+  import ThreeScene from '$lib/ThreeScene.svelte';
+
+  // Get the shared context (provided by layout)
+  const context = useSharedContext();
+  
+  // --- Controller: create but DON'T set immediately ---
+  const handController = createOneHandController();
+
+  // Set the default accessory for this route (Wand)
+  const wandIndex = context.handAccessories.findIndex(acc => acc.name === 'Wand');
+  if (wandIndex >= 0) context.selectedAccessoryIndex = wandIndex;
+
+  // State for scene and initialization
+  let sceneReady = $state(false);
+  // let mediaPipeInitialized = $state(false); // State managed by layout now
+  let initializationError = $state(null); // Can still show errors from layout/context?
+  let debugInfo = $state({ status: 'Page Initializing' }); // Update initial status
+
+  // Three.js scene ready/destroy handlers
+  function handleThreeSceneReady(payload) {
+    if (!payload || !payload.scene) return;
+    
+    context.threeJsScene = payload.scene;
+    context.threeJsCamera = payload.camera;
+    context.threeJsRenderer = payload.renderer;
+    sceneReady = true;
+    context.threeJsReady = true; // Inform context ThreeJS is ready
+    
+    // Add this line to update layout's loader state
+    if (context.setSceneReady) context.setSceneReady(true);
+    
+    debugInfo.status = 'Scene ready';
+  }
+  
+  function handleThreeSceneDestroy() {
+    context.threeJsScene = null;
+    context.threeJsCamera = null;
+    context.threeJsRenderer = null;
+    sceneReady = false;
+    context.threeJsReady = false; // Inform context ThreeJS is not ready
+    
+    // Update layout's loader state
+    if (context.setSceneReady) context.setSceneReady(false);
+    
+    debugInfo.status = 'Scene destroyed';
+  }
+
+  // Derived state to check if essential DOM elements from layout are ready
+  // Depend on layoutInitialized as a trigger to re-check leftPane and canvas
+  // We still need this to know when to mount ThreeScene
+  const layoutDomReady = $derived(context.layoutInitialized && !!context.leftPane && !!context.canvas);
+
+  // Log when layoutDomReady changes
+  $effect(() => {
+    console.log(`[Camera Page Effect] layoutDomReady changed to: ${layoutDomReady}`);
+    if (layoutDomReady) {
+      debugInfo.status = 'Layout Ready, waiting for Scene';
+    }
+  });
+
+  /*
+  // MediaPipe initialization (runs once when video is ready)
+  // --- REMOVED --- This logic moves back to the layout
+  $effect(() => {
+    let cancelled = false;
+    initializationError = null;
+    mediaPipeInitialized = false;
+
+    async function startup() {
+      console.log('[Camera Page MP Startup] Checking conditions:', { layoutDomReady, videoReady: context.videoReady, activeController: !!context.activeController });
+      // Explicitly wait for layout DOM elements, video, and controller
+      if (!layoutDomReady || !context.videoReady || !context.activeController) {
+        debugInfo.status = 'Waiting for video/canvas/controller';
+        return;
+      }
+      
+      try {
+        debugInfo.status = 'Initializing MediaPipe';
+        console.log('[Camera Page MP Startup] Calling mediaService.initializeWithVideoElement...');
+        const result = await mediaService.initializeWithVideoElement(context.getVideoElement(), context.canvas);
+        mediaPipeInitialized = result.success;
+        if (!result.success) {
+          initializationError = result.message;
+          debugInfo.status = 'MediaPipe failed: ' + result.message;
+        } else {
+          debugInfo.status = 'MediaPipe ready';
+        }
+      } catch (error) {
+        initializationError = error.message || 'MediaPipe initialization failed';
+        debugInfo.status = 'MediaPipe error: ' + error.message;
+        mediaPipeInitialized = false;
+      }
+    }
+    startup();
+
+    // Cleanup
+    return () => {
+      cancelled = true;
+      context.mediaPipeLoaded = false;
+      context.handFound = false;
+      // Controller cleanup is handled in its own effect
+    };
+  });
+  */
+
+  // Set active controller in an effect - Ensure this runs after initial render potentially
+  $effect(() => {
+    console.log('[Camera Page Effect] Setting activeController in context.');
+    context.activeController = handController;
+    debugInfo.status = 'Controller Set'; // Update status
+    // Cleanup function to remove the controller when the component unmounts
+    return () => {
+      if (context.activeController === handController) {
+        console.log('[Camera Page Effect] Clearing activeController from context.');
+        context.activeController = null;
+      }
+    };
+  });
+
+  // Derived values for accessory rendering - Depend on controller state now
+  const accessoryVisible = $derived(context.activeController?.visible);
+  const accessoryPosition = $derived(context.activeController?.position);
+  const accessoryQuaternion = $derived(context.activeController?.quaternion);
+  const accessoryScale = $derived(context.activeController?.scale);
+</script>
+
+<!-- Debug panel to help see what's happening -->
+<div class="fixed top-0 left-0 z-max p-2 bg-black-50 white code">
+  <div>Status: {debugInfo.status}</div>
+  <div>LayoutDOM: {layoutDomReady ? 'Ready' : 'Waiting'}</div>
+  <div>LeftPane: {context.leftPane ? 'Available' : 'Not Available'}</div>
+  <div>SceneReady: {sceneReady ? 'Yes' : 'No'}</div>
+  <div>MP Ready (Layout): {context.mediaPipeLoaded ? 'Ready' : 'Not Ready'}</div> <!-- Check layout's MP state -->
+  <div>Controller: {context.activeController ? 'Set' : 'Not Set'}</div>
+  <div>Selected: {context.selectedAccessory?.name || 'None'}</div>
+</div>
+
+<!-- Explicit check for layout DOM readiness -->
+{#if layoutDomReady}
+  <ThreeScene
+    leftPane={context.leftPane} 
+    onReady={handleThreeSceneReady}
+    onDestroy={handleThreeSceneDestroy}
+  />
+  <div class="fixed top-16 left-0 z-max p-2 bg-green white">ThreeScene mounted</div>
+{:else}
+  <div class="fixed top-16 left-0 z-max p-2 bg-red white">
+    [Camera Page] Layout DOM elements (leftPane/canvas) not available yet.
+  </div>
+{/if}
+
+{#if sceneReady && context.threeJsScene && context.selectedAccessory && context.activeController}
+  {@const Accessory = context.selectedAccessory.component}
+  {#key context.selectedAccessory.name} 
+    <Accessory
+      scene={context.threeJsScene}
+      visible={accessoryVisible}      
+      position={accessoryPosition}   
+      quaternion={accessoryQuaternion}
+      scale={accessoryScale}      
+    />
+  {/key}
+{/if}
+
+{#if initializationError}
+  <div class="fixed z-max top-24 left-1 bg-red white pa2 br3 code">
+    Page Error: {initializationError}
+  </div>
+{/if}
+{#if context.detectionStatus && context.detectionStatus.startsWith('Error')}
+   <div class="fixed z-max top-32 left-1 bg-orange white pa2 br3 code">
+    Layout/MP Error: {context.detectionStatus}
+  </div>
+{/if}
+
+================
+File: src/routes/(app)/camera/Axe.svelte
+================
+<script>
+// src/routes/camera/Axe.svelte - Revised with explicit debugging
+import * as THREE from 'three';
+
+// Define props with default values
+let { 
+  scene,
+  visible = false,
+  position = { x: 0, y: 0, z: 0 },
+  quaternion = { x: 0, y: 0, z: 0, w: 1 },
+  scale = 1
+} = $props();
+
+// mesh reference
+let accessory;
+
+// --- Effect to Create/Destroy Mesh ---
+$effect(() => {
+  if (!scene) return;
+  
+  // Use a more descriptive log specific to this component instance
+  console.log("[Axe Component] $effect: Creating mesh"); 
+  
+  // Axe handle (cylinder)
+  const handleGeometry = new THREE.CylinderGeometry(0.05, 0.07, 3.5, 12);
+  handleGeometry.translate(0, 1.5, 0); // Move pivot point to bottom of cylinder
+  
+  const handleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8B4513, // Brown color
+    roughness: 0.9,
+    metalness: 0.1
+  });
+  
+  // Create the accessory mesh with handle
+  accessory = new THREE.Mesh(handleGeometry, handleMaterial);
+  
+  // Create a simple accessory blade using a box with custom scaling
+  const bladeGeometry = new THREE.BoxGeometry(1.2, 0.7, 0.1);
+  const bladeMaterial = new THREE.MeshStandardMaterial({
+    color: 0xCCCCCC, // Silver color
+    roughness: 0.3,
+    metalness: 0.9
+  });
+  
+  const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+  blade.position.set(0, 3.0, 0); // Position at the top of the handle
+  accessory.add(blade);
+  
+  // Set initial visibility
+  accessory.visible = visible;
+
+  
+  // Initial visibility/position is handled by the update effect
+  scene.add(accessory);
+  console.log("[Axe Component] Added to scene");
+  
+  // Cleanup
+  return () => {
+    if (accessory) {
+      console.log("[Axe Component] $effect cleanup: Removing from scene");
+      scene.remove(accessory);
+      
+      // Dispose geometries and materials
+      handleGeometry.dispose();
+      handleMaterial.dispose();
+      bladeGeometry.dispose();
+      bladeMaterial.dispose();
+      
+      accessory = null;
+    }
+  };
+});
+
+
+
+// --- Combined Effect for All Properties ---
+$effect(() => {
+  if (!accessory) return;
+  
+  // Update visibility
+  accessory.visible = visible;
+  
+  // Update position if provided
+  if (position) {
+    accessory.position.set(
+      position.x || 0,
+      position.y || 0,
+      position.z || 0
+    );
+  }
+  
+  // Update quaternion if provided
+  if (quaternion) {
+    accessory.quaternion.set(
+      quaternion.x || 0,
+      quaternion.y || 0,
+      quaternion.z || 0,
+      quaternion.w !== undefined ? quaternion.w : 1
+    );
+  }
+  
+  // Update scale if provided
+  if (scale !== null && scale !== undefined) {
+    const scaleValue = typeof scale === 'number' ? scale : 1;
+    accessory.scale.set(scaleValue, scaleValue, scaleValue);
+  }
+});
+</script>
+
+================
+File: src/routes/(app)/camera/data.json
+================
+{
+  "title": "Camera Experiment",
+  "description": "Test your hand gestures with virtual objects",
+  "gameType": "sandbox",
+  "handTracking": {
+    "enabled": true,
+    "showWireframe": true
+  },
+  "availableObjects": ["Sword", "Wand", "Axe"]
+}
+
+================
+File: src/routes/(app)/camera/gameConfig.svelte.js
+================
+// Example: src/routes/camera/config.svelte.js
+
+/*
+* About `$lib/controllerOneHand.svelte.js`
+* Examples: `Wand`, `Sword`, `Axe`.
+* Essential for defining behavior and non-serializable configuration for a specific game route.
+* This is where you'd configure which controller to use and its options.
+*/
+
+import { createOneHandController } from '$lib/controllerOneHand.svelte.js';
+import Wand from './Wand.svelte';
+import Sword from './Sword.svelte';
+import Axe from './Axe.svelte';
+
+export const gameConfig = {
+    title: "Camera Sandbox", // Could also come from JSON
+    controllers: [
+        { type: 'oneHand',
+          factory: createOneHandController,
+          options: { fistThreshold: 0.21 }
+        }
+        /* Future concept:
+        * ideal for flying like superman, a bike or a boxing game:
+        {
+          type: 'twoHand',
+          factory: createTwoHandController,
+          options: { ... }
+          * each leftHand AND rightHand: { position, quaternion, scale, visible, stableState }
+          * combined property for things like handlebar orientation
+          * update might take multiHandLandmarks
+        } */
+    ],
+    accessories: [ // Mapping names to components for this specific game
+        { name: 'Wand', component: Wand },
+        { name: 'Sword', component: Sword },
+        { name: 'Axe', component: Axe },
+    ],
+    initialAccessory: 'Wand',
+    gestureMap: { // Game-specific mapping
+        'fist': 'HOLD_ACCESSORY',
+        'palm': 'RELEASE_ACCESSORY' // Example
+    }
+};
+
+================
+File: src/routes/(app)/camera/Sword.svelte
+================
+<script>
+// src/routes/camera/Sword.svelte - Revised with explicit debugging
+import * as THREE from 'three';
+
+// Define props with default values
+let { 
+  scene,
+  visible = false,
+  position = { x: 0, y: 0, z: 0 },
+  quaternion = { x: 0, y: 0, z: 0, w: 1 },
+  scale = 1
+} = $props();
+
+// mesh reference
+let accessory;
+
+// --- Effect to Create/Destroy Mesh ---
+$effect(() => {
+  if (!scene) return;
+  
+  // Use a more descriptive log specific to this component instance
+  console.log("[Sword Component] $effect: Creating mesh"); 
+  
+  // Create accessory blade (metallic cylinder)
+  const bladeGeometry = new THREE.CylinderGeometry(0.075, 0.03, 4.0, 16);
+  bladeGeometry.translate(0, 2, 0); // Move pivot point to bottom of cylinder
+  
+  const bladeMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0xCCCCCC, // Silver color
+    roughness: 0.3, 
+    metalness: 0.9
+  });
+  
+  // Create the accessory mesh
+  accessory = new THREE.Mesh(bladeGeometry, bladeMaterial);
+  
+  // Add a guard (cross guard)
+  const guardGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.1);
+  const guardMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8B4513, // Brown color
+    roughness: 0.7,
+    metalness: 0.3
+  });
+  
+  const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+  guard.position.set(0, 0.1, 0); // Position at the bottom of the blade
+  accessory.add(guard);
+  
+  // Add a handle
+  const handleGeometry = new THREE.CylinderGeometry(0.06, 0.08, 0.8, 16);
+  handleGeometry.translate(0, -0.4, 0); // Position below the guard
+  
+  const handleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x5D4037, // Dark brown
+    roughness: 0.9,
+    metalness: 0.1
+  });
+  
+  const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+  accessory.add(handle);
+  
+  // Add a pommel (bottom of handle)
+  const pommelGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+  const pommelMaterial = new THREE.MeshStandardMaterial({
+    color: 0xB5A642, // Brass color
+    roughness: 0.3,
+    metalness: 0.8
+  });
+  
+  const pommel = new THREE.Mesh(pommelGeometry, pommelMaterial);
+  pommel.position.set(0, -0.8, 0); // Position at bottom of handle
+  accessory.add(pommel);
+  
+  // Set initial visibility
+  accessory.visible = visible;
+  
+  // Initial visibility/position is handled by the update effect
+  scene.add(accessory);
+  console.log("[Sword Component] Added to scene");
+  
+  // Cleanup
+  return () => {
+    if (accessory) {
+      console.log("[Sword Component] $effect cleanup: Removing from scene");
+      scene.remove(accessory);
+
+      // Dispose geometries and materials
+      bladeGeometry.dispose();
+      bladeMaterial.dispose();
+      guardGeometry.dispose();
+      guardMaterial.dispose();
+      handleGeometry.dispose();
+      handleMaterial.dispose();
+      pommelGeometry.dispose();
+      pommelMaterial.dispose();
+
+      accessory = null;
+    }
+  };
+});
+
+
+// --- Combined Effect for All Properties ---
+$effect(() => {
+  if (!accessory) return;
+  
+  // Update visibility
+  accessory.visible = visible;
+  
+  // Update position if provided
+  if (position) {
+    accessory.position.set(
+      position.x || 0,
+      position.y || 0,
+      position.z || 0
+    );
+  }
+  
+  // Update quaternion if provided
+  if (quaternion) {
+    accessory.quaternion.set(
+      quaternion.x || 0,
+      quaternion.y || 0,
+      quaternion.z || 0,
+      quaternion.w !== undefined ? quaternion.w : 1
+    );
+  }
+  
+  // Update scale if provided
+  if (scale !== null && scale !== undefined) {
+    const scaleValue = typeof scale === 'number' ? scale : 1;
+    accessory.scale.set(scaleValue, scaleValue, scaleValue);
+  }
+});
+</script>
+
+================
+File: src/routes/(app)/camera/Wand.svelte
+================
+<script>
+  // src/routes/camera/Wand.svelte - Revised with explicit debugging
+  import * as THREE from 'three';
+  
+  // Define props with default values
+  let { 
+    scene,
+    visible = false,
+    position = { x: 0, y: 0, z: 0 },
+    quaternion = { x: 0, y: 0, z: 0, w: 1 },
+    scale = 1
+  } = $props();
+  
+  // Wand mesh reference
+  let accessory;
+  
+  // --- Effect to Create/Destroy Mesh ---
+  $effect(() => {
+    if (!scene) return;
+    
+    console.log("[Wand] Creating mesh"); 
+    
+    const geometry = new THREE.CylinderGeometry(0.05, 0.05, 3.0, 16);
+    geometry.translate(0, 1, 0); 
+    const material = new THREE.MeshStandardMaterial({ 
+      color: 0x8B4513, roughness: 0.7, metalness: 0.2 
+    });
+    accessory = new THREE.Mesh(geometry, material);
+    
+    const tipGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+    const tipMaterial = new THREE.MeshStandardMaterial({
+      color: 0xFFD700, emissive: 0xFFD700, emissiveIntensity: 0.5,
+      roughness: 0.3, metalness: 0.8
+    });
+    const tip = new THREE.Mesh(tipGeometry, tipMaterial);
+    tip.position.set(0, 2.5, 0); 
+    accessory.add(tip);
+    
+    // Add to scene
+    scene.add(accessory);
+    console.log("[Wand] Added to scene");
+    
+    // Cleanup
+    return () => {
+      if (accessory) {
+        console.log("[Wand] Removing from scene");
+        scene.remove(accessory);
+        geometry.dispose();
+        material.dispose();
+        tipGeometry.dispose();
+        tipMaterial.dispose();
+        accessory = null;
+      }
+    };
+  });
+  
+  // --- Combined Effect for All Properties ---
+  $effect(() => {
+    if (!accessory) return;
+    
+    // Update visibility
+    accessory.visible = visible;
+    
+    // Update position if provided
+    if (position) {
+      accessory.position.set(
+        position.x || 0,
+        position.y || 0,
+        position.z || 0
+      );
+    }
+    
+    // Update quaternion if provided
+    if (quaternion) {
+      accessory.quaternion.set(
+        quaternion.x || 0,
+        quaternion.y || 0,
+        quaternion.z || 0,
+        quaternion.w !== undefined ? quaternion.w : 1
+      );
+    }
+    
+    // Update scale if provided
+    if (scale !== null && scale !== undefined) {
+      const scaleValue = typeof scale === 'number' ? scale : 1;
+      accessory.scale.set(scaleValue, scaleValue, scaleValue);
+    }
+  });
+</script>
+
+================
+File: src/routes/(app)/sword/+page.svelte
+================
+<script>
+// src/routes/(app)/sword/+page.svelte
+
+/*
+* Example UX:
+* The player should be able to use the sword holding it under the hilt with two fists.
+* Specification:
+* The sword should use a different `controller` to the existing codebase. It will be defined in `import { createTwoHandController } from '$lib/controllerTwoHands.svelte.js';`.
+* Visualise the page data for debugging:
+* akin to: `{@html JSON.stringify(data?.data, null, 2) }` */
+</script>
+  
+  <!-- routes/(app)/+layout.svelte is COMMON TO ALL ROUTES -->
+  <div class="absolute z-max top-0 left-0 w-4 h-4 bg-black gold" style="width: auto;">
+    THIS IS UNIQUE TO: routes/(app)/sword
+  </div>
+
+================
+File: src/routes/(app)/sword/Sword.svelte
+================
+<script>
+// src/routes/camera/Sword.svelte - Revised with explicit debugging
+import * as THREE from 'three';
+
+// Define props with default values
+let { 
+  scene,
+  visible = false,
+  position = { x: 0, y: 0, z: 0 },
+  quaternion = { x: 0, y: 0, z: 0, w: 1 },
+  scale = 1
+} = $props();
+
+// mesh reference
+let accessory;
+
+// --- Effect to Create/Destroy Mesh ---
+$effect(() => {
+  if (!scene) return;
+  
+  // Use a more descriptive log specific to this component instance
+  console.log("[Sword Component] $effect: Creating mesh"); 
+  
+  // Create accessory blade (metallic cylinder)
+  const bladeGeometry = new THREE.CylinderGeometry(0.075, 0.03, 4.0, 16);
+  bladeGeometry.translate(0, 2, 0); // Move pivot point to bottom of cylinder
+  
+  const bladeMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0xCCCCCC, // Silver color
+    roughness: 0.3, 
+    metalness: 0.9
+  });
+  
+  // Create the accessory mesh
+  accessory = new THREE.Mesh(bladeGeometry, bladeMaterial);
+  
+  // Add a guard (cross guard)
+  const guardGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.1);
+  const guardMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8B4513, // Brown color
+    roughness: 0.7,
+    metalness: 0.3
+  });
+  
+  const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+  guard.position.set(0, 0.1, 0); // Position at the bottom of the blade
+  accessory.add(guard);
+  
+  // Add a handle
+  const handleGeometry = new THREE.CylinderGeometry(0.06, 0.08, 0.8, 16);
+  handleGeometry.translate(0, -0.4, 0); // Position below the guard
+  
+  const handleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x5D4037, // Dark brown
+    roughness: 0.9,
+    metalness: 0.1
+  });
+  
+  const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+  accessory.add(handle);
+  
+  // Add a pommel (bottom of handle)
+  const pommelGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+  const pommelMaterial = new THREE.MeshStandardMaterial({
+    color: 0xB5A642, // Brass color
+    roughness: 0.3,
+    metalness: 0.8
+  });
+  
+  const pommel = new THREE.Mesh(pommelGeometry, pommelMaterial);
+  pommel.position.set(0, -0.8, 0); // Position at bottom of handle
+  accessory.add(pommel);
+  
+  // Set initial visibility
+  accessory.visible = visible;
+  
+  // Initial visibility/position is handled by the update effect
+  scene.add(accessory);
+  console.log("[Sword Component] Added to scene");
+  
+  // Cleanup
+  return () => {
+    if (accessory) {
+      console.log("[Sword Component] $effect cleanup: Removing from scene");
+      scene.remove(accessory);
+
+      // Dispose geometries and materials
+      bladeGeometry.dispose();
+      bladeMaterial.dispose();
+      guardGeometry.dispose();
+      guardMaterial.dispose();
+      handleGeometry.dispose();
+      handleMaterial.dispose();
+      pommelGeometry.dispose();
+      pommelMaterial.dispose();
+
+      accessory = null;
+    }
+  };
+});
+
+
+// --- Combined Effect for All Properties ---
+$effect(() => {
+  if (!accessory) return;
+  
+  // Update visibility
+  accessory.visible = visible;
+  
+  // Update position if provided
+  if (position) {
+    accessory.position.set(
+      position.x || 0,
+      position.y || 0,
+      position.z || 0
+    );
+  }
+  
+  // Update quaternion if provided
+  if (quaternion) {
+    accessory.quaternion.set(
+      quaternion.x || 0,
+      quaternion.y || 0,
+      quaternion.z || 0,
+      quaternion.w !== undefined ? quaternion.w : 1
+    );
+  }
+  
+  // Update scale if provided
+  if (scale !== null && scale !== undefined) {
+    const scaleValue = typeof scale === 'number' ? scale : 1;
+    accessory.scale.set(scaleValue, scaleValue, scaleValue);
+  }
+});
+</script>
+
+================
+File: src/routes/(app)/+layout.svelte
+================
+<script>
+  // src/routes/(app)/+layout.svelte
+  import '$src/app.css';
+  import { useSharedContext, createSharedContext } from '$lib/useSharedContext.svelte.js';
+  import RightMenu from '$lib/RightMenu.svelte';
+  import Loader from '$lib/Loader.svelte';
+  import * as mediaService from '$lib/mediapipeService.svelte.js'; // Import MediaPipe Service
+
+  // Create the shared context during component initialization
+  const sharedContext = createSharedContext();
+
+  // Accept children as props
+  const { children, data } = $props();
+
+  // DOM References
+  let container;
+  let rightPane;
+  let resizer;
+  let videoElement;
+  let videoOverlayGray;
+  let handCanvas;
+  let leftPane = $state(null);
+
+  // State
+  let sceneReady = $state(false); // Set by page via context.setSceneReady
+  let cameraReady = $state(false); // Set by initializeCamera
+  let mediaPipeInitialized = $state(false); // Set by initializeMediaPipe
+  let initializationError = $state(null);
+  let initializing = $state(true);
+  let layoutSceneReady = $state(false); // Controlled by page using context.setSceneReady
+  let cameraSyncTimestamp = $state(Date.now());
+
+  // Get the shared context
+  const context = useSharedContext();
+
+  // --- Callbacks for ThreeScene (Passed down to child pages if needed) ---
+  // Although layout doesn't render ThreeScene, context might hold refs
+  function handleThreeSceneReady(payload) {
+    if (!payload || !payload.scene) return;
+    context.threeJsScene = payload.scene;
+    context.threeJsCamera = payload.camera;
+    context.threeJsRenderer = payload.renderer;
+    sceneReady = true;
+    context.threeJsReady = true;
+  }
+  function handleThreeSceneDestroy() {
+    context.threeJsScene = null;
+    context.threeJsCamera = null;
+    context.threeJsRenderer = null;
+    sceneReady = false;
+    context.threeJsReady = false;
+  }
+
+  // --- Layout and DOM Element Setup ---
+  $effect(() => {
+    if (container && leftPane && rightPane && resizer && videoElement && handCanvas) {
+      console.log('[Layout Effect] All DOM elements bound.');
+      context.setElements({ container, leftPane, rightPane, resizer, videoElement, videoOverlayGray, handCanvas });
+      if (!context.layoutInitialized) {
+        context.updateLayout(context.dividerPosition);
+        const resizeCleanup = context.setupResizeListener();
+        context.layoutInitialized = true;
+        console.log('[Layout Effect] Context layoutInitialized set to true.');
+        // Return cleanup function for resize listener
+        return resizeCleanup;
+      }
+    }
+  });
+
+   // Add a method to allow pages to update scene ready state
+  $effect(() => {
+      context.setSceneReady = (ready) => {
+      console.log("[Layout] Scene ready state updated by page:", ready);
+      layoutSceneReady = ready;
+    };
+  });
+
+  // Camera initialization 
+  async function initializeCamera() {
+    if (!videoElement) return false;
+    try {
+      console.log('[Layout Startup] Initializing Camera...')
+      await context.initCamera(); // Uses context's method which updates context state
+      if (context.videoReady && handCanvas) {
+        console.log('[Layout Startup] Camera ready, syncing canvas size.')
+        if (handCanvas.width !== context.videoWidth || handCanvas.height !== context.videoHeight) {
+          handCanvas.width = context.videoWidth;
+          handCanvas.height = context.videoHeight;
+        }
+      }
+       console.log(`[Layout Startup] Camera init result: ${context.videoReady}`);
+      return context.videoReady;
+    } catch (error) {
+      console.error("[Layout Startup] Camera initialization failed:", error);
+      throw error; // Propagate error
+    }
+  }
+
+  // MediaPipe Initialization
+  async function initializeMediaPipe() {
+    // Requires video element and canvas, implies camera init must have succeeded
+    if (!videoElement || !handCanvas || !context.videoReady) {
+      console.log('[Layout Startup] Skipping MediaPipe init (video/canvas not ready).');
+      return false;
+    }
+    try {
+      console.log('[Layout Startup] Initializing MediaPipe...');
+      const result = await mediaService.initializeWithVideoElement(videoElement, handCanvas, context); // Pass context
+      mediaPipeInitialized = result.success;
+      context.mediaPipeLoaded = result.success; // Update context state
+      context.detectionStatus = result.message || (result.success ? 'MediaPipe Ready' : 'MediaPipe Failed');
+      console.log(`[Layout Startup] MediaPipe init result: ${result.success}, Msg: ${context.detectionStatus}`);
+      if (!result.success) {
+          initializationError = context.detectionStatus; // Show MP error
+      }
+      return result.success;
+    } catch (error) {
+      console.error("[Layout Startup] MediaPipe initialization failed:", error);
+      mediaPipeInitialized = false;
+      context.mediaPipeLoaded = false;
+      context.detectionStatus = `Error: ${error.message}`;
+      initializationError = context.detectionStatus;
+      return false;
+    }
+  }
+
+  // --- Main Initialization Effect --- 
+  $effect(() => {
+    initializing = true;
+    initializationError = null;
+    cameraReady = false;
+    mediaPipeInitialized = false; // Reset MP state on effect run
+    sceneReady = false; // Reset scene state
+
+    let cancelled = false;
+
+    async function startup() {
+      // 1. Wait for DOM elements needed for camera/canvas
+      await new Promise(resolve => setTimeout(resolve, 0)); // Ensure DOM bindings can apply
+      if (cancelled || !videoElement || !handCanvas) {
+        if (!cancelled) initializationError = 'DOM elements not found';
+        console.log('[Layout Startup] Aborted - DOM elements not found.');
+        initializing = false;
+        return;
+      }
+      console.log('[Layout Startup] DOM elements ready.');
+
+      // 2. Initialize Camera
+      try {
+        const camSuccess = await initializeCamera();
+        if (cancelled || !camSuccess) {
+          if (!cancelled) throw new Error("Camera initialization failed or was skipped.");
+          return;
+        }
+        cameraReady = true; // Set local state
+        console.log('[Layout Startup] Camera initialized successfully.');
+
+        // 3. Initialize MediaPipe (only if camera is ready)
+        if (cameraReady) {
+          const mpSuccess = await initializeMediaPipe();
+          if (cancelled || !mpSuccess) {
+              if (!cancelled) console.warn('[Layout Startup] MediaPipe initialization failed or was skipped.');
+              // Don't necessarily stop everything if MP fails, maybe allow fallback?
+              // If MP error needs to halt, throw an error here.
+          } else {
+               console.log('[Layout Startup] MediaPipe initialized successfully.');
+          }
+        }
+
+      } catch (error) {
+        if (!cancelled) {
+           console.error('[Layout Startup] Initialization Error:', error);
+          initializationError = error.message || 'An unknown error occurred during initialization.';
+          // Update context status if appropriate
+          if (context.detectionStatus !== `Error: ${initializationError}`) {
+              context.detectionStatus = `Error: ${initializationError}`;
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          initializing = false;
+          console.log('[Layout Startup] Finalizing initialization.');
+        }
+      }
+    }
+    startup();
+
+    // Cleanup function for this effect
+    return () => {
+      cancelled = true;
+      console.log('[Layout Effect Cleanup] Stopping tracks, resetting states...');
+      // Stop camera tracks
+      if (videoElement && videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach(track => track.stop());
+        videoElement.srcObject = null;
+      }
+      // Reset states
+      cameraReady = false;
+      mediaPipeInitialized = false;
+      sceneReady = false;
+      initializing = false;
+      initializationError = null;
+      // Reset context states managed by layout
+      context.videoReady = false;
+      context.mediaPipeLoaded = false;
+      context.detectionStatus = 'Inactive';
+      // Don't reset layoutInitialized here, it's tied to DOM binding effect
+      // Don't reset threeJsReady, that's controlled by scene
+    };
+  });
+
+  // Loader: Show while initializing OR if camera/MP failed AND scene isn't ready
+  // Or maybe just while the page hasn't signaled scene ready?
+  const showLoader = $derived(!layoutSceneReady);
+
+</script>
+
+<RightMenu />
+
+{#if showLoader}
+  <Loader />
+{/if}
+
+<main class="bg-dark-gray white h-100 vh-100">
+  {#if sharedContext}
+    <!-- Render children (the page) -->
+    {@render children()}
+
+    <!-- Video Background Layer -->
+    <div class="video-background absolute top-0 left-0 w-100 vh-100 z-0">
+      <video
+        bind:this={videoElement}
+        style="transform: scaleX(-1);"
+        class="absolute top-0 left-0 w-100 h-100 object-cover"
+        autoplay
+        playsinline
+        muted
+      ></video>
+      <div bind:this={videoOverlayGray} class="absolute top-0 left-0 w-100 h-100 grayscale-overlay"></div>
+      <canvas style="transform: scaleX(-1);" bind:this={handCanvas} class="absolute top-0 left-0 w-100 h-100 hand-canvas z-1 pointer-events-none"></canvas>
+    </div>
+
+    <!-- Main Content Section -->
+    <section bind:this={container} class="flex vh-100 relative z-2">
+      <!-- Left Pane (for Three.js scene) -->
+      <div bind:this={leftPane} class="relative leftPane overflow-hidden" style="width: {context.dividerPosition}px;">
+        <!-- Child components will render their content here -->
+      </div>
+
+      <!-- Resizer -->
+      <div
+        bind:this={resizer}
+        role="slider"
+        aria-valuenow="{context.dividerPosition}"
+        tabindex="0"
+        aria-label="Central Resizer"
+        aria-orientation="vertical"
+        class="resizer absolute bg-white-60 hover-bg-white vh-100 w05 z-3 col-resize flex items-center justify-center"
+        style:left="{context.dividerPosition}px"
+        onmousedown={context.pointerstart}
+        ontouchstart={context.pointerstart}
+      >
+        <div class="handle"><div class="handle-icon">⋮</div></div>
+      </div>
+
+      <!-- Right Pane -->
+      <div bind:this={rightPane} class="relative rightPane" style:width="calc(100% - {context.dividerPosition}px)">
+        <!-- Right pane content (menu, debug, etc) is handled by RightMenu -->
+      </div>
+    </section>
+  {/if}
+
+  {#if initializationError && !showLoader}
+    <div class="fixed bottom-1 left-1 z-max bg-red white pa2 br3 code">
+      Layout Init Error: {initializationError}
+    </div>
+  {/if}
+</main>
+
+<style>
+  :global(*, *::before, *::after) {
+    box-sizing: border-box;
+  }
+  :global(body) {
+    margin: 0;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+  :global(.video-container) { overflow: hidden; }
+  :global(.object-cover) { object-fit: cover; }
+  :global(.grayscale-overlay) {
+    background: transparent;
+    backdrop-filter: grayscale(1) brightness(1) contrast(0.8) saturate(0);
+    -webkit-backdrop-filter: grayscale(1) brightness(1) contrast(0.8) saturate(0);
+  }
+  :global(.col-resize) { cursor: col-resize; }
+  :global(.leftPane) {
+    position: relative;
+    background: transparent;
+    height: 100%;
+    overflow: hidden;
+  }
+  :global(.rightPane) {
+    background: rgba(50, 50, 50, 0.3);
+    height: 100%;
+    overflow: hidden;
+  }
+  :global(.video-background) { z-index: 0; }
+  :global(.grayscale-overlay) {
+    background: transparent;
+    backdrop-filter: grayscale(0.8) brightness(0.9) contrast(0.9) saturate(0);
+    -webkit-backdrop-filter: grayscale(0.8) brightness(0.9) contrast(0.9) saturate(0);
+    pointer-events: none;
+  }
+  :global(.hand-canvas) {
+    transform: scaleX(-1);
+    mix-blend-mode: screen;
+    opacity: 0.7;
+    z-index: 1;
+  }
+  :global(.w05) { width: 10px; }
+  :global(.hover-bg-white:hover) { background-color: rgba(255, 255, 255, 0.9); }
+  :global(.resizer) { top: 0; transform: translateX(-50%); height: 100%; cursor: col-resize; background: rgba(255, 255, 255, 0.1); transition: background-color 0.2s ease; }
+  :global(.resizer:hover) { background-color: rgba(255, 255, 255, 0.3); }
+  :global(.handle) { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background-color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); pointer-events: none; }
+  :global(.handle-icon) { transform: rotate(90deg); font-weight: bold; color: #555; user-select: none; }
+</style>
+
+================
+File: src/routes/+layout.svelte
+================
+<script lang="ts">
+// src/routes/+layout.svelte
+import '$src/app.css';
+import Defs from '$lib/Defs.svelte';
+
+let { children } = $props();
+</script>
+
+<!-- ROOT ONLY -->
+{@render children()}
+
+<Defs />
+
+================
+File: src/routes/+page.svelte
+================
+<script>
+// src/routes/+page.svelte
+const URL = 'images/punch.webp'
+</script>
+
+<main class="flex flex-column w-100 vh-100 overflow-y-scroll">
+  <header class="code">
+    <div class="cover bg-left bg-center-l" style="background-image: url({URL})">
+      <div class="bg-black-80 pb5 pb6-m pb5-l">
+        <nav class="dt w-100 mw8 center"> 
+          <div class="dtc w2 v-mid pa3">
+            <a href="/" class="dib w2 h2 pa1 ba b--white-90 grow-large border-box">
+              <svg viewBox="0 0 32 32" class="link white-90 hover-white">
+                <title>MixedReadlityGam.es</title>
+                <use xlink:href="#icon-menu"></use>
+              </svg>
+            </a>
+          </div>
+          <div class="dtc v-mid tr pa3">
+            <a class="f6 fw4 hover-white no-underline white-70 dn dib-ns pv2 ph3" href="/camera" >/camera</a> 
+            <a class="f6 fw4 hover-white no-underline white-70 dn dib-ns pv2 ph3" href="/axe" >/axe</a> 
+          </div>
+        </nav> 
+        <div class="tc-l mt4 mt5-m mt6-l ph3">
+          <h1 class="f2 f1-l fw2 white-90 mb0 lh-title">MixedRealityGam.es</h1>
+          <h2 class="fw1 f3 white-80 mt3 mb4">Vibe Together</h2>
+          <a class="f6 no-underline grow dib v-mid bg-blue white ba b--blue ph3 pv2 mb3" href="/camera">/camera</a>
+          <!-- <span class="dib v-mid ph3 white-70 mb3">or</span> -->
+          <a class="f6 no-underline grow dib v-mid white ba b--white ph3 pv2 mb3" href="/axe">/axe</a>
+        </div>
+      </div>
+    </div> 
+  </header>
+
+  <section class="flex flex-column ba bw1 b--gray">
+    <ul class="list dt mw6 center pv4 pv5-m pv6-ns">
+      <li>
+        <div class="dtc v-mid">
+          <img src={URL} alt="Placeholder" class="mw5" />
+        </div>
+        <div class="dtc v-mid pl3">
+          <p class="lh-copy">
+            This text is vertically aligned middle, no matter what the height of the image is.
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="dtc v-mid">
+          <img src={URL} alt="Placeholder" class="mw5" />
+        </div>
+        <div class="dtc v-mid pl3">
+          <p class="lh-copy">
+            This text is vertically aligned middle, no matter what the height of the image is.
+          </p>
+        </div>
+      </li>
+    </ul>
+  </section>
+</main>
+
+<style>
+</style>
+
+================
+File: src/hooks.server.js
+================
+// src/hooks.server.js
+
+export const handle = async ({ event, resolve }) => {
+  const response = await resolve(event);
+  if (event.url.pathname.startsWith('mediapipe/')) {
+    response.headers.set(
+      'Cache-Control',
+      'public, max-age=31536000, immutable'
+    );
+  }
+  return response;
+};
+
+================
+File: .gitignore
+================
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Support
+./support
+
+================
+File: .npmrc
+================
+engine-strict=true
+
+================
+File: .repomixignore
+================
+/* repomix-ignore-start */
+
+node_modules/
+.svelte-kit/
+public/
+support/
+CONVENTIONS-runes-global-state.md
+CONVENTIONS.md
+package-lock.json
+pnpm-lock.yaml
+README.md
+repomix-output.txt
+/scripts
+src/app.css
+src/app.d.ts
+src/app.html
+/static/mediapipe
+/static/
+
+# nb: perplexity.ai/search/i-want-to-use-the-repomix-expr-B0erhsrITv.UPiG468412w
+
+================
+File: eslint.config.js
+================
+import js from '@eslint/js';
+import { includeIgnoreFile } from '@eslint/compat';
+import svelte from 'eslint-plugin-svelte';
+import globals from 'globals';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript-eslint';
+const gitignorePath = fileURLToPath(new URL("./.gitignore", import.meta.url));
+
+export default ts.config(
+  includeIgnoreFile(gitignorePath),
+  js.configs.recommended,
+  ...ts.configs.recommended,
+  ...svelte.configs["flat/recommended"],
+  {
+    languageOptions: {
+	  globals: {
+	    ...globals.browser,
+	    ...globals.node
+	  }
+	}
+  },
+  {
+    files: ["**/*.svelte"],
+
+    languageOptions: {
+	  parserOptions: {
+	    parser: ts.parser
+	  }
+	}
+  }
+);
+
+================
+File: package.json
+================
+{
+	"name": "lightsaber",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint": "eslint ."
+	},
+	"devDependencies": {
+		"@eslint/compat": "^1.2.5",
+		"@eslint/js": "^9.18.0",
+		"@sveltejs/adapter-vercel": "^5.5.2",
+		"@sveltejs/kit": "^2.16.0",
+		"@sveltejs/vite-plugin-svelte": "^5.0.0",
+		"eslint": "^9.18.0",
+		"eslint-plugin-svelte": "^2.46.1",
+		"globals": "^15.14.0",
+		"svelte": "^5.0.0",
+		"svelte-check": "^4.0.0",
+		"typescript": "^5.0.0",
+		"typescript-eslint": "^8.20.0",
+		"vite": "^6.0.0"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
+	},
+	"dependencies": {
+		"@mediapipe/camera_utils": "^0.3.1675466862",
+		"@mediapipe/drawing_utils": "^0.3.1675466124",
+		"@mediapipe/hands": "^0.4.1675469240",
+		"three": "^0.174.0"
+	}
+}
+
+================
+File: svelte.config.js
+================
+import adapter from "@sveltejs/adapter-vercel";
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import path from 'path';
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+	// Consult https://svelte.dev/docs/kit/integrations
+	// for more information about preprocessors
+	preprocess: vitePreprocess(),
+
+	kit: {
+		//adapter: vercel(),
+		adapter: adapter(),
+		alias: {
+			$routes: path.resolve('./src/routes'),
+			$lib: path.resolve('./src/lib'),
+			$src: path.resolve('./src/')
+    }
+	},
+
+	// Three.JS: perplexity.ai/search/i-have-this-statement-in-my-sv-gHilVBvSQjiaDjm848gYGA
+	vite: {
+		ssr: {
+			noExternal: ['three'] // Prevent Three.js from being externalized
+		}
+	},
+};
+
+export default config;
+
+================
+File: svelte.config.mjs
+================
+// svelte.config.mjs
+import adapter from "@sveltejs/adapter-vercel";
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import path from 'path';
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+	// Consult https://svelte.dev/docs/kit/integrations
+	// for more information about preprocessors
+	preprocess: vitePreprocess(),
+
+	kit: {
+		//adapter: vercel(),
+		adapter: adapter(),
+		alias: {
+			$routes: path.resolve('./src/routes'),
+			$lib: path.resolve('./src/lib'),
+			$src: path.resolve('./src/')
+			
+    }
+	},
+
+	// Three.JS: perplexity.ai/search/i-have-this-statement-in-my-sv-gHilVBvSQjiaDjm848gYGA
+	vite: {
+		ssr: {
+			noExternal: ['three'] // Prevent Three.js from being externalized
+		}
+	},
+};
+
+export default config;
+
+================
+File: tsconfig.json
+================
+{
+	"extends": "./.svelte-kit/tsconfig.json",
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"moduleResolution": "bundler"
+	}
+	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
+	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
+	//
+	// If you want to overwrite includes/excludes, make sure to copy over the relevant includes/excludes
+	// from the referenced tsconfig.json - TypeScript does not merge them in
+}
+
+================
+File: vite.config.ts
+================
+// ./vite.config.js
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  
+  // Configure MediaPipe dependencies
+  optimizeDeps: {
+    include: [
+      '@mediapipe/hands',
+      '@mediapipe/camera_utils',
+      '@mediapipe/drawing_utils'
+    ],
+    esbuildOptions: {
+      // Fix WebGL-related issues by properly handling MediaPipe's wasm files
+      target: 'es2020',
+    }
+  },
+  
+  // Ensure MediaPipe assets are properly handled
+  assetsInclude: ['**/*.wasm', '**/*.tflite'],
+  
+  // Correctly resolve MediaPipe module paths
+  resolve: {
+    alias: {
+      '@mediapipe': resolve(__dirname, 'node_modules/@mediapipe')
+    }
+  },
+  
+  // Enable working with WebGL and Web Workers
+  worker: {
+    format: 'es'
+  },
+  
+  // Configure server to work with MediaPipe
+  server: {
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin'
+    }
+  },
+  
+  // Improve build performance with MediaPipe
+  build: {
+    target: 'es2020',
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
+  }
+});
+
+
+
+================================================================
+End of Codebase
+================================================================
