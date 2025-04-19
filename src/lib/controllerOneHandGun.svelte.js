@@ -5,9 +5,6 @@ import {
 } from '$lib/handGestureUtils.js';
 import * as THREE from 'three';
 
-// At the top of controllerOneHandGun.svelte.js, outside any functions
-console.log('[CONTROLLER LOADED]: controllerOneHandGun.svelte.js');
-
 // Default configurations
 // Depth variation explained: 
 const SIZE = 25;
@@ -21,14 +18,14 @@ const SCALE_FACTOR_MULTIPLIER = 1.0;  // Keep consistent scale
 const SCALE_OFFSET = 1.0;  // Prevent excessive scaling at distance
 const MIN_SCALE = 0.05;    // Smaller for minimum scale
 const MAX_SCALE = SIZE;    // Maximum (5x) for close objects
-const PALM_NORMAL_STABILIZATION_THRESHOLD = 0.0001;  // Better stabilization
+const PALM_NORMAL_STABILIZATION_THRESHOLD = 0.1;  // Better stabilization
 
 // Gun Shooting Mechanism:
 let previousHandCenterPosition = { x: 0, y: 0, z: 0 };
 let currentVelocity = { x: 0, y: 0, z: 0 };
 let lastShootTime = 0;
-const SHOOT_COOLDOWN = 50; // ms between shots
-const SHAKE_THRESHOLD = 0.1; // Adjust based on testing
+const SHOOT_COOLDOWN = 300; // ms between shots
+const SHAKE_THRESHOLD = 0.012; // Adjust based on testing
 
 
 export function createOneHandController(options = {}) {
@@ -118,9 +115,6 @@ export function createOneHandController(options = {}) {
   // --- Calculate Transform (Updates internal $state values) ---
   function calculateTransform(landmarks) {
     const handCenter = calculateHandCenter(landmarks);
-
-    // THIS LOG IS NEVER RETURNED IN THE CONSOLE
-    console.log('[calculateTransform] from `controllerOneHandGun.svelte.js`')
     
     if (!handCenter || landmarks.length < 21 || !landmarks[0] || !landmarks[5] || !landmarks[17] || !landmarks[12]) return;
 
@@ -160,10 +154,6 @@ export function createOneHandController(options = {}) {
         }));
       }
     }
-
-    // THIS LOG IS NEVER RETURNED IN THE CONSOLE
-    console.log(`Hand velocity: ${velocityMagnitude.toFixed(4)}, Threshold: ${SHAKE_THRESHOLD}`);
-
 
     // Turn the hand accessory:    
     const rawZ = handCenter.z;
