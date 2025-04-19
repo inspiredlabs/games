@@ -1,0 +1,10 @@
+{
+  "title": "Camera Experiment",
+  "description": "Test your hand gestures with virtual objects",
+  "gameType": "sandbox",
+  "handTracking": {
+    "enabled": true,
+    "showWireframe": true
+  },
+  "availableObjects": ["Sword", "Wand", "Axe"]
+}

@@ -1,5 +1,5 @@
 <script>
-  // src/routes/camera/Wand.svelte - Revised with explicit debugging
+  // src/routes/camera/Wand.svelte - Resized for better proportions
   import * as THREE from 'three';
   
   // Define props with default values
@@ -20,20 +20,22 @@
     
     console.log("[Wand] Creating mesh"); 
     
-    const geometry = new THREE.CylinderGeometry(0.05, 0.05, 3.0, 16);
-    geometry.translate(0, 1, 0); 
+    // Reduced dimensions for better proportions
+    const geometry = new THREE.CylinderGeometry(0.012, 0.012, 0.7, 16);
+    geometry.translate(0, 0.35, 0); 
     const material = new THREE.MeshStandardMaterial({ 
       color: 0x8B4513, roughness: 0.7, metalness: 0.2 
     });
     accessory = new THREE.Mesh(geometry, material);
     
-    const tipGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+    // Reduced tip size as well
+    const tipGeometry = new THREE.SphereGeometry(0.02, 16, 16);
     const tipMaterial = new THREE.MeshStandardMaterial({
       color: 0xFFD700, emissive: 0xFFD700, emissiveIntensity: 0.5,
       roughness: 0.3, metalness: 0.8
     });
     const tip = new THREE.Mesh(tipGeometry, tipMaterial);
-    tip.position.set(0, 2.5, 0); 
+    tip.position.set(0, 0.7, 0); 
     accessory.add(tip);
     
     // Add to scene

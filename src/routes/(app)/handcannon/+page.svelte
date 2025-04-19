@@ -6,12 +6,10 @@
   import { gameConfig } from './gameConfig.svelte.js';
 
   // --- Import Controller Factory ---
-  import { createOneHandController } from '$lib/controllerOneHand.svelte.js';
+  import { createOneHandController } from '$lib/controllerOneHandGun.svelte.js';
 
   // --- Import Accessory Components Directly --- 
-  import WandComponent from './Wand.svelte';
-  import SwordComponent from './Sword.svelte';
-  import AxeComponent from './Axe.svelte';
+  import GunComponent from './Gun.svelte';
   
   // --- Import environment components ---
   import GroundPlane from './GroundPlane.svelte';
@@ -19,9 +17,7 @@
   // --- Define Accessory List Statically (Locally) ---
   // This list should be the single source of truth for this route
   const HAND_ACCESSORIES_LIST = [
-    { name: 'Axe', component: AxeComponent },
-    { name: 'Wand', component: WandComponent },
-    { name: 'Sword', component: SwordComponent }
+    { name: 'Rifle', component: GunComponent }
   ];
 
   // Get the shared context (provided by layout)

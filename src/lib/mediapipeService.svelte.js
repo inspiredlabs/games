@@ -157,17 +157,24 @@ export async function initializeWithVideoElement(videoElement, canvas = null, co
     
     // Initialize smoothing stores
     const { smoothedHandLandmarksForDisplay, smoothedHandCenterForDisplay } = initSmoothingStores();
+
+    // req. for FOCUSED LOG
+    let previousHandState = null;
     
     // Configure hand detection callback
     hands.onResults((results) => {
         
-      // --- MODIFIED LOG --- 
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        console.log(`[MediaPipe Service onResults] Found ${results.multiHandLandmarks.length} hand(s).`);
-      } else {
-        console.log('[MediaPipe Service onResults] No hands found.'); // <-- UNCOMMENTED THIS LINE
+      // --- FOCUSED LOG --- 
+      const currentHandState = results.multiHandLandmarks && results.multiHandLandmarks.length > 0 
+      ? `Found ${results.multiHandLandmarks.length} hand(s)`
+      : 'No hands found';
+
+      // Only log when state changes
+      if (currentHandState !== previousHandState) {
+      console.log(`[MediaPipe Service onResults] ${currentHandState}`);
+      previousHandState = currentHandState;
       }
-      // --- END LOG --- 
+      // --- END FOCUSED LOG ---
         
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0]; 

@@ -15,7 +15,6 @@
   let localCamera;
   let localRenderer;
   let animationFrameId;
-  let cleanup = () => {}; // Cleanup function
   
   // Initialize Three.js when mounted (browser-only)
   $effect.pre(() => {
@@ -46,17 +45,17 @@
       metalness: 0.3
     });
     const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-    cube.position.set(-0.81, -1.50, -0.13); // I can see this, so why can't I see the hand?
+    cube.position.set(-0.81, -1.50, -0.13); // I can see this
     localScene.add(cube);
     
     // Create camera
     localCamera = new THREE.PerspectiveCamera(
-      75, 
+      60, // Akin to QuickFPS
       leftPane.offsetWidth / leftPane.offsetHeight, 
-      0.1, 
-      1000
+      0.1, // Close near clipping plane
+      1000.0 // Far clipping plane
     );
-    localCamera.position.set(0, 1.6, 5);
+    localCamera.position.set(0, 3, 7); // Akin to QuickFPS
     localCamera.lookAt(0, 0, 0);
     
     // Create renderer with magenta background for debugging

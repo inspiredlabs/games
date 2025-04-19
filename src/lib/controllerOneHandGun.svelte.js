@@ -1,72 +1,12 @@
-/* HOW TO USE THIS COMPONENT:
-	// In your main app or parent component
-	import { setContext } from 'svelte';
-	// Assuming you have a controller instance
-	const controller = createOneHandController();
-	// Set the controller in context
-	setContext('controller', controller);
-	// In your debug component
-	import { getContext } from 'svelte';
-	// Get the controller from context
-	const controller = getContext('controller');
-	// Access debug state
-	console.log(controller.debugState);
-*/
-
-/* HOW TO CLONE AND START A NEW CONTROLLER
-* Add an overview description
-* consider both hand states when determining derived properties
-* Processing both hands and their relationship to each other:
-* const leftHandLandmarks = landmarks[0];
-* const rightHandLandmarks = landmarks[1];
-
-function calculateTransformForHand(landmarks, handSide) {
-	// Similar to original but 
-	// adapted for each hand
-	// and their relationship to each other
-	// like distance apart for bike handle bars
-	// perplexity.ai/search/i-want-to-annotate-a-javascrip-iL7ymk5PTN.Sjf8z5dYNIg
-} */
-
-/*
-* About `$lib/controllerOneHand.svelte.js`
-
-* @typedef {Object} DebugState
-* @property {string} controllerType
-* @property {string} stableState
-* @property {number} avgDistance
-* @property {boolean} isTracking
-* @property {{x: number, y: number, z: number}} targetPosition
-* @property {number} currentScale
-* @property {string} message
-
-* In terms of HID (human interface device), this is only for a single object with a handle and only works with one hand.
-* Examples: `Wand`, `Sword`, `Axe`.
-
-* It is a stateful module factory. It uses functions from handGestureUtils.js but adds the crucial layers of:
-* 	State Management: Tracking stableHandState, stateCounter.
-* 	Configuration: fistThreshold, zScaleFactor, depthRange, stabilityThreshold.
-* 	Smoothing/Interpolation: Using Tween for position, quaternion, scale.
-* 	Derived Logic: Determining visible based on stableHandState.
-* 	Encapsulated Logic: Bundling the specific steps to calculate accessory transforms based on the one-handed fist interaction model.
-* Integration:
-* 	This component uses context to make the active controller instance itself available globally.
-* 	The debug component will then read the reactive debug state directly from the controller instance found in the context.
-*/
-
-// src/lib/controllerOneHand.svelte.js
-// src/lib/controllerOneHand.svelte.js
-// Based on the improved logic from WandVisualizer.svelte test case
-// FIX: Convert THREE.Quaternion to plain object for tweening
-// src/lib/controllerOneHand.svelte.js
-// REVERTED: Controller calculates TARGET values and exposes them via $state.
-
-// src/lib/controllerOneHand.svelte.js
+// src/lib/controllerOneHandGun.svelte.js
 import {
 	calculateHandCenter,
 	calculateDistance
 } from '$lib/handGestureUtils.js';
 import * as THREE from 'three';
+
+// At the top of controllerOneHandGun.svelte.js, outside any functions
+console.log('[CONTROLLER LOADED]: controllerOneHandGun.svelte.js');
 
 // Default configurations
 // Depth variation explained: 
@@ -82,6 +22,13 @@ const SCALE_OFFSET = 1.0;  // Prevent excessive scaling at distance
 const MIN_SCALE = 0.05;    // Smaller for minimum scale
 const MAX_SCALE = SIZE;    // Maximum (5x) for close objects
 const PALM_NORMAL_STABILIZATION_THRESHOLD = 0.0001;  // Better stabilization
+
+// Gun Shooting Mechanism:
+let previousHandCenterPosition = { x: 0, y: 0, z: 0 };
+let currentVelocity = { x: 0, y: 0, z: 0 };
+let lastShootTime = 0;
+const SHOOT_COOLDOWN = 50; // ms between shots
+const SHAKE_THRESHOLD = 0.1; // Adjust based on testing
 
 
 export function createOneHandController(options = {}) {
@@ -171,9 +118,54 @@ export function createOneHandController(options = {}) {
   // --- Calculate Transform (Updates internal $state values) ---
   function calculateTransform(landmarks) {
     const handCenter = calculateHandCenter(landmarks);
+
+    // THIS LOG IS NEVER RETURNED IN THE CONSOLE
+    console.log('[calculateTransform] from `controllerOneHandGun.svelte.js`')
     
     if (!handCenter || landmarks.length < 21 || !landmarks[0] || !landmarks[5] || !landmarks[17] || !landmarks[12]) return;
+
+    // Gun Shooting Mechanism:
+    // Calculate velocity (how fast the hand is moving)
+    currentVelocity = {
+      x: (handCenter.x - previousHandCenterPosition.x),
+      y: (handCenter.y - previousHandCenterPosition.y),
+      z: (handCenter.z - previousHandCenterPosition.z),
+    };
     
+    // Store current position for next frame's velocity calculation
+    previousHandCenterPosition = { ...handCenter };
+    
+    // Check for shooting gesture (rapid movement)
+    const velocityMagnitude = Math.sqrt(
+      currentVelocity.x * currentVelocity.x + 
+      currentVelocity.y * currentVelocity.y +
+      currentVelocity.z * currentVelocity.z
+    );
+    
+    const now = Date.now();
+    if (velocityMagnitude > SHAKE_THRESHOLD && now - lastShootTime > SHOOT_COOLDOWN) {
+      // More obvious debugging
+      console.log("🔫 SHOOTING! 🔫", velocityMagnitude);
+      debugState.message = "SHOOTING!";
+      lastShootTime = now;
+      
+      // Dispatch with more data for debugging
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gun-shoot', { 
+          detail: { 
+            position, 
+            quaternion,
+            velocity: velocityMagnitude 
+          }
+        }));
+      }
+    }
+
+    // THIS LOG IS NEVER RETURNED IN THE CONSOLE
+    console.log(`Hand velocity: ${velocityMagnitude.toFixed(4)}, Threshold: ${SHAKE_THRESHOLD}`);
+
+
+    // Turn the hand accessory:    
     const rawZ = handCenter.z;
     let scaledZ;
     const epsilon = 1e-6;
@@ -240,7 +232,7 @@ export function createOneHandController(options = {}) {
         w: _quat.w
       };
     }
-    
+
     // Calculate scale
     const handWidth = calculateDistance(landmarks[5], landmarks[17]);
     const scaleDenominator = Math.max(0.01, rawZ + SCALE_OFFSET);
