@@ -20,7 +20,7 @@
       class="pa2 ba b--transparent input-reset w-100"
       value={context.selectedAccessoryIndex}
     >
-      {#each context.handAccessories as accessory, i}
+      {#each context.currentGameAccessories as accessory, i}
         <option value={i}>{accessory.name}</option>
       {/each}
     </select>

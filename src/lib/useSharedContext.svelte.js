@@ -1,19 +1,8 @@
 // $lib/useSharedContext.svelte.js
 import { getContext, setContext } from 'svelte';
-// Import accessory components needed for the list definition
-import WandComponent from '$routes/(app)/camera/Wand.svelte';
-import SwordComponent from '$routes/(app)/camera/Sword.svelte';
-import AxeComponent from '$routes/(app)/camera/Axe.svelte';
 
 // Symbol used as context key to prevent collisions
 const CONTEXT_KEY = Symbol('sharedContext');
-
-// Define accessories list statically (assuming it doesn't change)
-const HAND_ACCESSORIES_LIST = [
-  { name: 'Axe', component: AxeComponent },
-  { name: 'Wand', component: WandComponent },
-  { name: 'Sword', component: SwordComponent }
-];
 
 const DEFAULT_VALUES = {
   // Layout and video properties
@@ -50,7 +39,7 @@ const DEFAULT_VALUES = {
 
   // Accessory properties
   accessory: {
-      selectedIndex: 0 
+    selectedIndex: 0 
   }
 };
 
@@ -87,8 +76,10 @@ export function createSharedContext() {
     particleCount: DEFAULT_VALUES.three.particleCount,
     lastRenderTime: DEFAULT_VALUES.three.lastRenderTime,
 
-    // Accessory reactive state
+    // Game-specific properties
+    gameAccessories: [], 
     selectedAccessoryIndex: DEFAULT_VALUES.accessory.selectedIndex,
+    gameConfigApplied: false,
 
     ready: true // General readiness flag
   });
@@ -173,21 +164,50 @@ export function createSharedContext() {
     get lastRenderTime() { return state.lastRenderTime; },
     set lastRenderTime(v) { state.lastRenderTime = v; },
 
-    // Accessory Getters/Setters (Access primitive state)
-    get handAccessories() { return HAND_ACCESSORIES_LIST; },
+    // --- Game Config Applied Flag ---
+    get gameConfigApplied() { return state.gameConfigApplied; },
+    set gameConfigApplied(v) { state.gameConfigApplied = !!v; },
+
+    // --- Game Accessories ---
+    setGameAccessories(accessoriesList) {
+        if (Array.isArray(accessoriesList)) {
+            if (JSON.stringify(state.gameAccessories) !== JSON.stringify(accessoriesList)) {
+                state.gameAccessories = accessoriesList;
+                if (state.selectedAccessoryIndex >= state.gameAccessories.length) {
+                    state.selectedAccessoryIndex = 0;
+                }
+                console.log('[Context] Game accessories updated:', state.gameAccessories.map(a => a.name));
+            } else {
+                console.log('[Context] Game accessories unchanged, skipping update.');
+            }
+        } else {
+            console.error('[Context] Invalid accessories list provided to setGameAccessories.');
+            state.gameAccessories = [];
+            state.selectedAccessoryIndex = -1;
+        }
+    },
+    get currentGameAccessories() { return state.gameAccessories; },
     get selectedAccessoryIndex() { return state.selectedAccessoryIndex; },
     set selectedAccessoryIndex(index) {
         const idx = parseInt(index, 10);
-        if (!isNaN(idx) && idx >= 0 && idx < HAND_ACCESSORIES_LIST.length) {
+        if (!isNaN(idx) && idx >= 0 && idx < state.gameAccessories.length) {
             if (state.selectedAccessoryIndex !== idx) {
                 state.selectedAccessoryIndex = idx;
             }
         } else {
-            console.warn(`[Context] Invalid accessory index set attempt: ${index}`);
+            if (state.gameAccessories.length > 0) {
+                state.selectedAccessoryIndex = 0;
+            } else {
+                state.selectedAccessoryIndex = -1; 
+            }
+            console.warn(`[Context] Invalid accessory index set attempt: ${index}. Resetting.`);
         }
     },
     get selectedAccessory() {
-        return HAND_ACCESSORIES_LIST[state.selectedAccessoryIndex] || null;
+        if (state.gameAccessories.length > 0 && state.selectedAccessoryIndex >= 0 && state.selectedAccessoryIndex < state.gameAccessories.length) {
+            return state.gameAccessories[state.selectedAccessoryIndex] || null;
+        }
+        return null;
     },
 
     // --- Resource references: Use reactive getters/setters for DOM elements --- 
@@ -432,7 +452,9 @@ function createDummyContext() {
     handLandmarks: [], handState: 'unknown', handCenter: null, handCenterSmoothed: null, handFound: false,
     handDetectionReady: false, detectionStatus: 'Initializing...', mediaPipeLoaded: false,
     threeJsReady: false, renderCount: 0, particleCount: 0, lastRenderTime: 0, aspectRatio: 16/9,
-    handAccessories: [], selectedAccessoryIndex: -1, selectedAccessory: null,
+    gameAccessories: [],
+    gameConfigApplied: false,
+    selectedAccessoryIndex: -1, selectedAccessory: null,
     activeController: null,
     // Provide null for elements that are now reactive in the real context
     canvas: null, leftPane: null, container: null, rightPane: null, resizer: null, videoOverlayGray: null, 
@@ -442,7 +464,9 @@ function createDummyContext() {
     handleResize: () => {}, pointermove: () => {}, pointerend: () => {}, pointerstart: () => {},
     initCamera: () => Promise.resolve(), cleanup: () => {}, setupResizeListener: () => () => {},
     setElements: () => {}, 
-    getVideoElement: () => null // Method still returns null in dummy
+    getVideoElement: () => null, // Method still returns null in dummy
+    setGameAccessories: () => {}, 
+    get currentGameAccessories() { return []; },
   };
 }
 

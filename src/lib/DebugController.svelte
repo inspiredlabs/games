@@ -12,6 +12,9 @@ const activeController = $derived(context.activeController);
 // This will be null if no controller is active
 const debugState = $derived(activeController?.debugState); 
 
+// Simplify controller status check for display
+const hasController = $derived(!!activeController);
+
 </script>
 
 <code class="meadow">
@@ -33,7 +36,13 @@ const debugState = $derived(activeController?.debugState);
     {/if}
   {/each}
 {:else}
-<span class="gold">No active controller detected.</span>
+<span class="gold">
+  {#if hasController}
+    Controller has no debug state available.
+  {:else}
+    No active controller detected.
+  {/if}
+</span>
 {/if}
 </div>
 </code>
