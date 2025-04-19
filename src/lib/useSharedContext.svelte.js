@@ -99,6 +99,8 @@ export function createSharedContext() {
   let _resizer = $state(null);
   let _videoOverlayGray = $state(null);
   let _canvas = $state(null);
+  // --- Make activeController reactive --- 
+  let _activeController = $state(null); 
   // --- End reactive element references ---
 
   // Non-reactive references (can remain as let)
@@ -106,7 +108,7 @@ export function createSharedContext() {
   let _threeJsScene = null;
   let _threeJsRenderer = null;
   let _threeJsCamera = null;
-  let _activeController = null; // Controller instance itself doesn't need to be reactive
+  // let _activeController = null; // <-- Now handled by $state above
   let _resizeRAF = null;
   let _lastContainerWidth = 0;
   let _resizeCleanup = () => {};
@@ -145,12 +147,11 @@ export function createSharedContext() {
     get mediaPipeLoaded() { return state.mediaPipeLoaded; },
     set mediaPipeLoaded(v) { state.mediaPipeLoaded = v; },
 
-    // --- Active Controller (Remains non-reactive reference) ---
+    // --- Active Controller (Use reactive getter/setter) ---
     get activeController() { return _activeController; },
     set activeController(controllerInstance) {
-        if (_activeController !== controllerInstance) {
-            _activeController = controllerInstance;
-        }
+        // Assignment to $state variable automatically triggers reactivity
+        _activeController = controllerInstance;
     },
     // --- End Active Controller ---
 
@@ -405,7 +406,7 @@ export function createSharedContext() {
       _resizeCleanup = () => {};
       if (_resizeRAF) { cancelAnimationFrame(_resizeRAF); _resizeRAF = null; }
       if (state.dragging) { context.pointerend(); }
-      _activeController = null;
+      _activeController = null; // Assign null to the $state variable
 
       // Reset reactive element refs
       _videoElement = null;
