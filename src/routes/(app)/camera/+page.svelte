@@ -37,31 +37,34 @@
   // --- Populate Context Accessories and Set Initial Accessory (using $effect.pre) ---
   $effect.pre(() => {
     if (browser) {
-      // Populate accessories in context
+      // Populate accessories in context ONLY IF EMPTY
       if (context.currentGameAccessories.length === 0) {
         console.log('[Camera Page Effect - Context List] Populating context.gameAccessories');
         context.setGameAccessories(HAND_ACCESSORIES_LIST);
-      }
-      
-      // Set initial accessory
-      const initialAccName = gameConfig.initialAccessory;
-      let initialIndex = -1;
-      if (initialAccName) {
-        initialIndex = HAND_ACCESSORIES_LIST.findIndex(acc => acc.name === initialAccName);
-        if (initialIndex < 0) {
-          console.warn(`[Camera Page Init] Initial accessory '${initialAccName}' not found in local list. Defaulting to first.`);
+
+        // Determine and set the initial accessory index *once* after populating
+        const initialAccName = gameConfig.initialAccessory;
+        let initialIndex = -1;
+        if (initialAccName) {
+          initialIndex = HAND_ACCESSORIES_LIST.findIndex(acc => acc.name === initialAccName);
+          if (initialIndex < 0) {
+            console.warn(`[Camera Page Init] Initial accessory '${initialAccName}' not found in local list. Defaulting to first.`);
+            initialIndex = 0;
+          }
+        } else {
           initialIndex = 0;
+          console.log("[Camera Page Init] No initial accessory specified. Defaulting to first.");
         }
-      } else {
-        initialIndex = 0;
-        console.log("[Camera Page Init] No initial accessory specified. Defaulting to first.");
+
+        // Set the index in the context *only during this initial population*
+        if (context.selectedAccessoryIndex === -1) { // Check if not already set
+            context.selectedAccessoryIndex = initialIndex;
+            debugInfo.status = 'Initial accessory set';
+            console.log(`[Camera Page Init] Set selectedAccessoryIndex to: ${initialIndex} (${HAND_ACCESSORIES_LIST[initialIndex]?.name})`);
+        }
       }
-      
-      if (context.selectedAccessoryIndex !== initialIndex) {
-        context.selectedAccessoryIndex = initialIndex;
-        debugInfo.status = 'Initial accessory set';
-        console.log(`[Camera Page Init] Set selectedAccessoryIndex to: ${initialIndex} (${HAND_ACCESSORIES_LIST[initialIndex]?.name})`);
-      }
+      // Removed the problematic 'if (context.selectedAccessoryIndex !== initialIndex)' block
+      // that was resetting the selection on every update.
     }
   });
 
