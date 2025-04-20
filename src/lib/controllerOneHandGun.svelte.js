@@ -8,7 +8,7 @@ import * as THREE from 'three';
 // Default configurations
 // Depth variation explained: 
 const SIZE = 25;
-const DEFAULT_FIST_THRESHOLD = 0.5;  // Detection threshold
+const DEFAULT_FIST_THRESHOLD = 0.31;  // Detection threshold
 const DEFAULT_Z_SCALE_FACTOR = SIZE;     // Increased for better depth mapping
 const DEFAULT_DEPTH_RANGE = { min: -(SIZE*2), max: (SIZE*2) };  // Map large world
 const DEFAULT_STABILITY_THRESHOLD = 30;  // Slightly more responsive
@@ -25,7 +25,7 @@ let previousHandCenterPosition = { x: 0, y: 0, z: 0 };
 let currentVelocity = { x: 0, y: 0, z: 0 };
 let lastShootTime = 0;
 const SHOOT_COOLDOWN = 300; // ms between shots
-const SHAKE_THRESHOLD = 0.012; // Adjust based on testing
+const SHAKE_THRESHOLD = 0.02; // Adjust based on testing
 
 
 export function createOneHandController(options = {}) {
@@ -118,42 +118,7 @@ export function createOneHandController(options = {}) {
     
     if (!handCenter || landmarks.length < 21 || !landmarks[0] || !landmarks[5] || !landmarks[17] || !landmarks[12]) return;
 
-    // Gun Shooting Mechanism:
-    // Calculate velocity (how fast the hand is moving)
-    currentVelocity = {
-      x: (handCenter.x - previousHandCenterPosition.x),
-      y: (handCenter.y - previousHandCenterPosition.y),
-      z: (handCenter.z - previousHandCenterPosition.z),
-    };
     
-    // Store current position for next frame's velocity calculation
-    previousHandCenterPosition = { ...handCenter };
-    
-    // Check for shooting gesture (rapid movement)
-    const velocityMagnitude = Math.sqrt(
-      currentVelocity.x * currentVelocity.x + 
-      currentVelocity.y * currentVelocity.y +
-      currentVelocity.z * currentVelocity.z
-    );
-    
-    const now = Date.now();
-    if (velocityMagnitude > SHAKE_THRESHOLD && now - lastShootTime > SHOOT_COOLDOWN) {
-      // More obvious debugging
-      console.log("🔫 SHOOTING! 🔫", velocityMagnitude);
-      debugState.message = "SHOOTING!";
-      lastShootTime = now;
-      
-      // Dispatch with more data for debugging
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('gun-shoot', { 
-          detail: { 
-            position, 
-            quaternion,
-            velocity: velocityMagnitude 
-          }
-        }));
-      }
-    }
 
     // Turn the hand accessory:    
     const rawZ = handCenter.z;

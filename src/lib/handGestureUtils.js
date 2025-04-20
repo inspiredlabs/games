@@ -1,8 +1,15 @@
 // lib/handGestureUtils.js
-// Utility functions for hand gesture detection
+// Utility functions for hand gesture detection.
+// CONVENTION: Functions in this file should be pure and stateless,
+// focusing on calculations and instantaneous detection based on inputs.
 
-import { log } from './mediapipeService.svelte.js'; // log(`Average fingertip distance: ${avgDistance.toFixed(3)}`);
+import { log } from './mediapipeService.svelte.js'; 
 
+// --- Exportable Default Values ---
+// Define and export the globally preferred default thresholds.
+// Game routes can override these via their gameConfig if needed.
+export const DEFAULT_SHAKE_THRESHOLDS = { x: 0.15, y: 0.12, z: 0.11 }; 
+export const DEFAULT_QUICK_MOVE_THRESHOLD = 0.01;
 
 /**
  * Calculate the Euclidean distance between two 3D points
@@ -11,6 +18,7 @@ import { log } from './mediapipeService.svelte.js'; // log(`Average fingertip di
  * @returns {number} The distance between the two points
  */
 export function calculateDistance(point1, point2) {
+  if (!point1 || !point2) return 0; 
   return Math.sqrt(
     Math.pow(point2.x - point1.x, 2) +
     Math.pow(point2.y - point1.y, 2) +
@@ -19,166 +27,216 @@ export function calculateDistance(point1, point2) {
 }
 
 /**
-  * Determine the hand gesture state based on landmarks
+  * Calculate the average distance from wrist to fingertips
   * @param {Array} landmarks - Array of hand landmarks from MediaPipe
-  * @returns {string} The hand state: 'fist', 'palm', or 'unknown'
+  * @returns {number} The average distance
   */
 export function calculateAvgFingerTipDistance(landmarks) {
   if (!landmarks || landmarks.length < 21) {
     return 0;
   }
   const wrist = landmarks[0];
-  const thumbTip = landmarks[4];
-  const indexTip = landmarks[8];
-  const middleTip = landmarks[12];
-  const ringTip = landmarks[16];
-  const pinkyTip = landmarks[20];
+  const tipIndices = [4, 8, 12, 16, 20]; 
+  let totalDistance = 0;
+  let validCount = 0;
 
-  const distances = [
-    calculateDistance(wrist, thumbTip),
-    calculateDistance(wrist, indexTip),
-    calculateDistance(wrist, middleTip),
-    calculateDistance(wrist, ringTip),
-    calculateDistance(wrist, pinkyTip)
-  ];
+  for (const index of tipIndices) {
+    if (landmarks[index]) {
+      totalDistance += calculateDistance(wrist, landmarks[index]);
+      validCount++;
+    }
+  }
 
-  const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
-  return avgDistance;
+  return validCount > 0 ? totalDistance / validCount : 0;
 }
 
 
 /**
- * Determine the hand gesture state based on landmarks
+ * Determine a basic hand gesture state (fist/palm/unknown) based on average fingertip distance.
  * @param {Array} landmarks - Array of hand landmarks from MediaPipe
  * @returns {string} The hand state: 'fist', 'palm', or 'unknown'
  */
 export function getHandState(landmarks) {
-  if (!landmarks || landmarks.length < 21) {
-    return 'unknown';
-  }
+  const avgDistance = calculateAvgFingerTipDistance(landmarks);
+  if (avgDistance === 0) return 'unknown'; 
   
-  const wrist = landmarks[0];
-  const thumbTip = landmarks[4];
-  const indexTip = landmarks[8];
-  const middleTip = landmarks[12];
-  const ringTip = landmarks[16];
-  const pinkyTip = landmarks[20];
-  
-  const distances = [
-    calculateDistance(wrist, thumbTip),
-    calculateDistance(wrist, indexTip),
-    calculateDistance(wrist, middleTip),
-    calculateDistance(wrist, ringTip),
-    calculateDistance(wrist, pinkyTip)
-  ];
-  
-  const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
-  
-  // see: `calculateAvgFingerTipDistance()` above.
-  // log(`Average fingertip distance: ${avgDistance.toFixed(3)}`);
-  
-  // These thresholds may need adjustment based on testing
-  if (avgDistance < 0.15) return 'fist';
-  if (avgDistance > 0.25) return 'palm';
-  return 'unknown';
+  const FIST_THRESHOLD = 0.15; 
+  const PALM_THRESHOLD_MULTIPLIER = 1.8; 
+
+  if (avgDistance < FIST_THRESHOLD) return 'fist';
+  if (avgDistance > FIST_THRESHOLD * PALM_THRESHOLD_MULTIPLIER) return 'palm'; 
+  return 'unknown'; 
 }
 
 /**
  * Calculate the center point of a hand from landmarks
  * @param {Array} landmarks - Array of hand landmarks from MediaPipe
- * @returns {Object} The hand center point with x, y, z coordinates
+ * @returns {Object | null} The hand center point {x, y, z} or null if invalid
  */
 export function calculateHandCenter(landmarks) {
+  if (!landmarks || landmarks.length === 0) return null;
   let sumX = 0, sumY = 0, sumZ = 0;
+  let validCount = 0;
   landmarks.forEach(lm => {
-    sumX += lm.x;
-    sumY += lm.y;
-    sumZ += lm.z;
+    if (lm && typeof lm.x === 'number' && typeof lm.y === 'number' && typeof lm.z === 'number') {
+      sumX += lm.x;
+      sumY += lm.y;
+      sumZ += lm.z;
+      validCount++;
+    }
   });
-  const count = landmarks.length;
+  if (validCount === 0) return null;
   return { 
-    x: sumX / count, 
-    y: sumY / count, 
-    z: sumZ / count 
+    x: sumX / validCount, 
+    y: sumY / validCount, 
+    z: sumZ / validCount 
   };
 }
 
 /**
- * Check if fingers are curled (useful for detailed gesture detection)
+ * Check if fingers are curled based on distance between tip and base knuckles.
  * @param {Array} landmarks - Array of hand landmarks from MediaPipe
- * @returns {Object} Object with boolean values for each finger curl state
+ * @returns {Object} Object with boolean values for each finger curl state. Returns all false if invalid landmarks.
  */
 export function checkFingerCurl(landmarks) {
-  // Return early if we don't have enough landmarks
+  const defaultCurlState = {
+    thumb: false, index: false, middle: false, ring: false, pinky: false
+  };
+  
   if (!landmarks || landmarks.length < 21) {
-    return {
-      thumb: false,
-      index: false,
-      middle: false,
-      ring: false,
-      pinky: false
-    };
+    return defaultCurlState;
   }
   
-  // Get fingertips and joints
-  const thumbTip = landmarks[4];
-  const indexTip = landmarks[8];
-  const middleTip = landmarks[12];
-  const ringTip = landmarks[16];
-  const pinkyTip = landmarks[20];
+  const tipIndices = [4, 8, 12, 16, 20];
+  const baseIndices = [2, 5, 9, 13, 17]; 
+  const fingerNames = ['thumb', 'index', 'middle', 'ring', 'pinky'];
   
-  // Get base knuckles
-  const thumbBase = landmarks[2];
-  const indexBase = landmarks[5];
-  const middleBase = landmarks[9];
-  const ringBase = landmarks[13];
-  const pinkyBase = landmarks[17];
-  
-  // Check curl by comparing distance from tip to base vs. expected distance when extended
-  const thumbCurl = calculateDistance(thumbTip, thumbBase) < 0.08;
-  const indexCurl = calculateDistance(indexTip, indexBase) < 0.12;
-  const middleCurl = calculateDistance(middleTip, middleBase) < 0.12;
-  const ringCurl = calculateDistance(ringTip, ringBase) < 0.12;
-  const pinkyCurl = calculateDistance(pinkyTip, pinkyBase) < 0.12;
-  
-  return {
-    thumb: thumbCurl,
-    index: indexCurl,
-    middle: middleCurl,
-    ring: ringCurl,
-    pinky: pinkyCurl
+  const curlThresholds = {
+    thumb: 0.08,
+    index: 0.12,
+    middle: 0.12,
+    ring: 0.12,
+    pinky: 0.12
   };
+
+  const curlState = { ...defaultCurlState };
+
+  for (let i = 0; i < fingerNames.length; i++) {
+    const tip = landmarks[tipIndices[i]];
+    const base = landmarks[baseIndices[i]];
+    const fingerName = fingerNames[i];
+    
+    if (tip && base) {
+      const distance = calculateDistance(tip, base);
+      curlState[fingerName] = distance < curlThresholds[fingerName];
+    }
+  }
+  
+  return curlState;
 }
 
 /**
- * Get a more detailed description of the hand pose
+ * Get a more detailed description of the hand pose based on finger curls.
  * @param {Array} landmarks - Array of hand landmarks from MediaPipe
- * @returns {string} Detailed hand pose description
+ * @returns {string} Detailed hand pose description (e.g., 'fist', 'open_palm', 'pointing', 'peace', 'unknown').
  */
 export function getDetailedHandPose(landmarks) {
+  if (!landmarks || landmarks.length < 21) return 'unknown';
+
   const fingerCurl = checkFingerCurl(landmarks);
-  const allFingersCurled = Object.values(fingerCurl).every(curl => curl);
-  const allFingersExtended = Object.values(fingerCurl).every(curl => !curl);
+  const numCurled = Object.values(fingerCurl).filter(Boolean).length;
   
-  if (allFingersCurled) return 'fist';
-  if (allFingersExtended) return 'open_palm';
+  if (numCurled >= 4) return 'fist'; 
+  if (numCurled === 0) return 'open_palm';
   
-  // Pointing gesture (index extended, others curled)
-  if (!fingerCurl.index && 
-      fingerCurl.middle && 
-      fingerCurl.ring && 
-      fingerCurl.pinky) {
+  if (!fingerCurl.index && fingerCurl.middle && fingerCurl.ring && fingerCurl.pinky) {
     return 'pointing';
   }
   
-  // Peace sign (index and middle extended, others curled)
-  if (!fingerCurl.index && 
-      !fingerCurl.middle && 
-      fingerCurl.ring && 
-      fingerCurl.pinky) {
+  if (!fingerCurl.index && !fingerCurl.middle && fingerCurl.ring && fingerCurl.pinky) {
     return 'peace';
   }
+
+  if (!fingerCurl.thumb && fingerCurl.index && fingerCurl.middle && fingerCurl.ring && fingerCurl.pinky) {
+      return 'thumbs_up';
+  }
   
-  // Default to basic hand state
-  return getHandState(landmarks);
+  return getHandState(landmarks); 
+}
+
+// --- Movement Detection Utilities (Stateless Detection) --- 
+
+/**
+ * Calculates velocity between two hand positions over a time delta.
+ * @param {Object | null} currentCenter - Current hand center {x,y,z} or null.
+ * @param {Object | null} previousCenter - Previous hand center {x,y,z} or null.
+ * @param {number} deltaTime - Time elapsed in milliseconds.
+ * @return {Object} Velocity vector {x,y,z}. Returns {0,0,0} if inputs are invalid or deltaTime <= 0.
+ */
+export function calculateHandVelocity(currentCenter, previousCenter, deltaTime) {
+  if (!currentCenter || !previousCenter || !deltaTime || deltaTime <= 0) {
+    return { x: 0, y: 0, z: 0 };
+  }
+  
+  return {
+    x: (currentCenter.x - previousCenter.x) / deltaTime,
+    y: (currentCenter.y - previousCenter.y) / deltaTime,
+    z: (currentCenter.z - previousCenter.z) / deltaTime
+  };
+}
+
+/**
+ * Detects if hand velocity exceeds thresholds on specific axes (shake).
+ * @param {Object} velocity - Velocity vector {x,y,z}.
+ * @param {Object} thresholds - Threshold values {x,y,z}. 
+ * @return {Object} Detected shakes {x: boolean, y: boolean, z: boolean}.
+ */
+export function detectShakeGesture(velocity, thresholds = { ...DEFAULT_SHAKE_THRESHOLDS }) {
+  // Use the exported constant as the default if no thresholds are passed
+  return {
+    x: Math.abs(velocity.x) > thresholds.x,
+    y: Math.abs(velocity.y) > thresholds.y,
+    z: Math.abs(velocity.z) > thresholds.z
+  };
+}
+
+/**
+ * Detects various movement-based hand gestures (shake, quick move).
+ * Pure function: Output depends only on input, no internal state (like cooldowns).
+ * @param {Object | null} currentCenter - Current hand center {x,y,z} or null.
+ * @param {Object | null} previousCenter - Previous hand center {x,y,z} or null.
+ * @param {number} deltaTime - Time elapsed in milliseconds.
+ * @param {Object} [options={}] - Detection options. 
+ *   Example: { shakeThresholds: {x, y, z}, quickMoveThreshold: number }
+ * @return {Object} Detected gestures. 
+ *   Example: { shake: { x: boolean, y: boolean, z: boolean }, quickMove: boolean }
+ */
+export function detectMovementGestures(currentCenter, previousCenter, deltaTime, options = {}) {
+  const gestures = {
+    shake: { x: false, y: false, z: false },
+    quickMove: false,
+  };
+
+  if (!currentCenter || !previousCenter || !deltaTime || deltaTime <= 0) {
+    return gestures;
+  }
+
+  // 1. Calculate Velocity
+  const velocity = calculateHandVelocity(currentCenter, previousCenter, deltaTime);
+
+  // 2. Detect Shakes using provided or default thresholds
+  // Use the exported constant as the fallback default if options.shakeThresholds isn't provided.
+  const shakeThresholds = options.shakeThresholds || DEFAULT_SHAKE_THRESHOLDS;
+  gestures.shake = detectShakeGesture(velocity, shakeThresholds);
+
+  // 3. Detect Quick Move (Overall Speed)
+  const speed = Math.sqrt(
+    velocity.x * velocity.x +
+    velocity.y * velocity.y +
+    velocity.z * velocity.z
+  );
+  // Use provided or exported constant default for quick move
+  gestures.quickMove = speed > (options.quickMoveThreshold || DEFAULT_QUICK_MOVE_THRESHOLD);
+  
+  return gestures;
 }

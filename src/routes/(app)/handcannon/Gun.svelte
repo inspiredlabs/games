@@ -13,7 +13,7 @@
     quaternion = { x: 0, y: 0, z: 0, w: 1 },
     scale = 1
   } = $props();
-  
+
   // mesh reference
   let accessory;
   let gunModel;
@@ -280,34 +280,60 @@
 
 
 
-  // In your Gun.svelte
-$effect.pre(() => {
+  // Update the event handler in Gun.svelte for better visual feedback
+
+$effect(() => {
   // Listen for shoot events
   const handleShoot = (event) => {
     console.log("Shooting!");
-    // Add shooting effects, sounds, etc.
     
-    // Example flash effect
-    if (gunModel) {
-      // Create muzzle flash
-      const flashGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+    // Enhanced flash effect
+    if (accessory) {
+      // Create larger, brighter muzzle flash for better visibility
+      const flashGeometry = new THREE.SphereGeometry(2, 32, 2); // Much larger sphere
       const flashMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0xffff00,
-        transparent: true,
-        opacity: 1 
+        color: 0xffff00,  // Bright yellow
+        //transparent: true,
+        opacity: 1      // Higher opacity
       });
+      
       const flash = new THREE.Mesh(flashGeometry, flashMaterial);
       
-      // Position at gun barrel
-      flash.position.set(0, 0, -1); // Adjust based on your model
+      // Position at gun barrel end - far enough to be clearly visible
+      flash.position.set(0, -16, 3); 
       accessory.add(flash);
       
-      // Animate and remove
-      setTimeout(() => {
-        accessory.remove(flash);
-        flashGeometry.dispose();
-        flashMaterial.dispose();
-      }, 100);
+      // Add a point light for additional effect
+      const flashLight = new THREE.PointLight(0xffff00, 50, 10);
+      flashLight.position.set(0, -16, 3);
+      accessory.add(flashLight);
+      
+      // Animate flash - grow and fade
+      let size = 0.5;
+      let opacity = 1.0;
+      const animateFlash = () => {
+        size += 0.1;
+        opacity -= 0.1;
+        
+        if (opacity <= 0) {
+          // Remove flash and light when animation completes
+          accessory.remove(flash);
+          accessory.remove(flashLight);
+          flashGeometry.dispose();
+          flashMaterial.dispose();
+          return;
+        }
+        
+        // Update flash size and opacity
+        flash.scale.set(size, size, size);
+        flashMaterial.opacity = opacity;
+        
+        // Continue animation
+        requestAnimationFrame(animateFlash);
+      };
+      
+      // Start animation
+      animateFlash();
     }
   };
   

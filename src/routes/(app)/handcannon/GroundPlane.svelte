@@ -31,7 +31,8 @@
       color: color,
       roughness: 0.8,
       metalness: 0.2,
-      opacity: 0.1
+      transparent: true,
+      opacity: 0.8
     });
     
     // Create the mesh

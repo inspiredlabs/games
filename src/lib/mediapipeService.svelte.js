@@ -1,10 +1,15 @@
 // $lib/mediapipeService.svelte.js
-// Consolidated MediaPipe service with direct video element handling
+// Consolidated MediaPipe service: Initializes MediaPipe, processes camera frames,
+// detects gestures (using utilities), and dispatches generic gesture events.
+// CONVENTION: This service manages state related to event timing (e.g., cooldowns)
+// but delegates stateless detection logic to handGestureUtils.js.
+
 import { useSharedContext } from './useSharedContext.svelte.js';
 import { 
   getDetailedHandPose,
   calculateHandCenter,
-  calculateAvgFingerTipDistance
+  calculateAvgFingerTipDistance,
+  detectMovementGestures
 } from './handGestureUtils.js';
 import {
   drawHandLandmarks,
@@ -19,6 +24,19 @@ export const MEDIAPIPE_CONFIG = {
   minDetectionConfidence: 0.3,
   minTrackingConfidence: 0.3,
   selfieMode: true
+};
+
+// Gesture tracking configuration
+const GESTURE_COOLDOWN_MS = 100; // Cooldown between gesture events (ms)
+let lastHandCenterPosition = null;
+let lastGestureTime = 0;
+let gestureCooldownActive = false;
+
+// Custom thresholds - more sensitive than defaults to ensure shooting works
+const CUSTOM_SHAKE_THRESHOLDS = {
+  x: 0.001, // More sensitive than default
+  y: 0.001, // More sensitive than default 
+  z: 0.005  // Much more sensitive for shooting gesture
 };
 
 // Logger utility with timestamps
@@ -58,7 +76,9 @@ export async function initializeMediaPipe() {
 export function createHandsModel(Hands) {
   log('Creating hand model');
   const hands = new Hands({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    // Local:
+    locateFile: (file) => `/mediapipe/hands/${file}`
+    // CDN: locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
   });
   
   hands.setOptions(MEDIAPIPE_CONFIG);
@@ -94,6 +114,63 @@ export async function initCamera(Camera, videoElement, onFrame) {
   } catch (error) {
     log('Camera error:', error);
     throw error;
+  }
+}
+
+// Process hand gestures and dispatch appropriate events
+// Replace the processHandGestures function with this simplified version
+
+function processHandGestures(context, handCenter) {
+  const now = Date.now();
+  
+  // Skip gesture processing if on cooldown
+  if (gestureCooldownActive) {
+    if (now - lastGestureTime > GESTURE_COOLDOWN_MS) {
+      gestureCooldownActive = false;
+    } else {
+      return;
+    }
+  }
+  
+  // Can't detect motion with only one sample
+  if (!lastHandCenterPosition) {
+    lastHandCenterPosition = { ...handCenter };
+    return;
+  }
+  
+  // Calculate movement
+  const dx = handCenter.x - lastHandCenterPosition.x;
+  const dy = handCenter.y - lastHandCenterPosition.y;
+  const dz = handCenter.z - lastHandCenterPosition.z;
+  
+  // Calculate magnitude of movement (3D distance)
+  const movementMagnitude = Math.sqrt(dx*dx + dy*dy + dz*dz);
+  
+  // Update last position for next frame
+  lastHandCenterPosition = { ...handCenter };
+  
+  // Ultra-sensitive threshold - very easy to trigger
+  const MOVEMENT_THRESHOLD = 0.04;
+  // 0.005 = ultra-sensitive (almost always active).
+  // 0.04 = good for shooting intentionally.
+  // 0.1 = very hard movement requires vigour.
+  
+  // Trigger shooting for any movement that exceeds the threshold
+  if (movementMagnitude > MOVEMENT_THRESHOLD) {
+    console.log(`Movement detected: ${movementMagnitude.toFixed(4)}`);
+    
+    // Dispatch shooting event
+    window.dispatchEvent(new CustomEvent('gun-shoot', { 
+      detail: { 
+        position: context.handCenter,
+        quaternion: context.activeController?.quaternion,
+        velocity: movementMagnitude
+      }
+    }));
+    
+    // Set cooldown
+    lastGestureTime = now;
+    gestureCooldownActive = true;
   }
 }
 
@@ -164,17 +241,17 @@ export async function initializeWithVideoElement(videoElement, canvas = null, co
     // Configure hand detection callback
     hands.onResults((results) => {
         
-      // --- FOCUSED LOG --- 
+    /* --- FOCUSED LOG --- 
       const currentHandState = results.multiHandLandmarks && results.multiHandLandmarks.length > 0 
       ? `Found ${results.multiHandLandmarks.length} hand(s)`
       : 'No hands found';
 
       // Only log when state changes
       if (currentHandState !== previousHandState) {
-      console.log(`[MediaPipe Service onResults] ${currentHandState}`);
-      previousHandState = currentHandState;
+        console.log(`[MediaPipe Service onResults] ${currentHandState}`);
+        previousHandState = currentHandState;
       }
-      // --- END FOCUSED LOG ---
+    // --- END FOCUSED LOG --- */
         
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0]; 
@@ -198,6 +275,11 @@ export async function initializeWithVideoElement(videoElement, canvas = null, co
             { drawConnectors, drawLandmarks }
           );
         }
+        
+        // Process hand gestures when we have a valid hand center
+        if (context.handCenter && context.handState === 'fist') {
+          processHandGestures(context, context.handCenter);
+        }
       } else {
         if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
         context.handLandmarks = [];
@@ -207,6 +289,9 @@ export async function initializeWithVideoElement(videoElement, canvas = null, co
         context.handFound = false;
         context.detectionStatus = 'No hand detected';
         updateSmoothedValues([], null); 
+        
+        // Reset gesture tracking when hand is lost
+        lastHandCenterPosition = null;
       }
 
       if (context.activeController) {

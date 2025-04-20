@@ -74,14 +74,14 @@ const SIZE = 25;
 const DEFAULT_FIST_THRESHOLD = 0.5;  // Detection threshold
 const DEFAULT_Z_SCALE_FACTOR = SIZE;     // Increased for better depth mapping
 const DEFAULT_DEPTH_RANGE = { min: -(SIZE*2), max: (SIZE*2) };  // Map large world
-const DEFAULT_STABILITY_THRESHOLD = 30;  // Slightly more responsive
+const DEFAULT_STABILITY_THRESHOLD = 90;  // Slightly more responsive
 const MAP_WIDTH = (SIZE * 0.25);    // Increased to match ground scale
 const MAP_HEIGHT = (SIZE * 0.25);   // Increased to match ground scale
 const SCALE_FACTOR_MULTIPLIER = 1.0;  // Keep consistent scale
 const SCALE_OFFSET = 1.0;  // Prevent excessive scaling at distance
 const MIN_SCALE = 0.05;    // Smaller for minimum scale
 const MAX_SCALE = SIZE;    // Maximum (5x) for close objects
-const PALM_NORMAL_STABILIZATION_THRESHOLD = 0.0001;  // Better stabilization
+const PALM_NORMAL_STABILIZATION_THRESHOLD = 1.0;  // Better stabilization
 
 
 export function createOneHandController(options = {}) {
